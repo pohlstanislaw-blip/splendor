@@ -410,3 +410,36 @@ input, select {
   .lantern-vignette { animation: none; }
   .card:not(.compact):not(.card-back):hover { transform: none; }
 }
+
+/* ---------- online: tabs, lobby ---------- */
+.tabs { display: flex; gap: 0; margin: 14px 0 6px; border-bottom: 1px solid var(--brass-lo); }
+.tabs button {
+  flex: 1; border-radius: 6px 6px 0 0; border-bottom: none; background: transparent; box-shadow: none;
+  font-family: var(--font-head); letter-spacing: 0.04em; color: var(--muted);
+}
+.tabs button.active { background: linear-gradient(180deg, #3a3029, #2a221d); color: var(--brass-hi); border-color: var(--brass-lo); }
+.online-panel { display: flex; flex-direction: column; gap: 6px; }
+.online-panel label.field input { flex: 0 1 240px; min-width: 0; }
+.online-section { border-top: 1px solid #c9a05233; padding-top: 10px; margin-top: 4px; }
+.online-section h3 { margin: 0 0 4px; font-size: 16px; color: var(--brass); letter-spacing: 0.04em; }
+.invite-callout { border: 1px solid var(--brass); border-radius: 8px; padding: 10px 12px; background: #f0d28a12; }
+.seat-fixed { flex: 1; font-style: italic; }
+.code-input { font-family: var(--font-head); letter-spacing: 0.3em; text-transform: uppercase; max-width: 180px; }
+.form-error { color: #ffb4a8; background: #5a1a2b88; border: 1px solid #a8475b; border-radius: 6px; padding: 6px 10px; margin: 6px 0 0; }
+.lobby { max-width: 520px; text-align: left; }
+.lobby-code {
+  font-family: var(--font-head); font-weight: 900; font-size: clamp(40px, 9vw, 64px); letter-spacing: 0.25em;
+  color: var(--brass-hi); text-shadow: 0 0 22px #ffb34766; line-height: 1.1; margin-bottom: 6px;
+}
+.invite-row { display: flex; gap: 8px; margin: 6px 0 12px; }
+.invite-row input { flex: 1; min-width: 0; font-size: 14px; }
+.seat-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.seat-list li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; background: #0003; border: 1px solid #c9a05233; }
+.seat-name { flex: 1; min-width: 0; font-size: 17px; }
+.seat-meta { color: var(--muted); font-size: 13px; font-style: italic; }
+.you-tag { color: var(--brass-hi); font-size: 12px; font-family: var(--font-head); }
+.room-chip { font-size: 14px; padding: 4px 10px; border: 1px solid var(--brass-lo); border-radius: 5px; background: #0004; }
+.room-chip b { font-family: var(--font-head); letter-spacing: 0.15em; color: var(--brass-hi); }
+.room-chip.warn { border-color: #a8475b; color: #ffb4a8; }
+.topbar-actions { display: flex; gap: 8px; align-items: center; }
+.offline-badge { color: #ffb4a8; }

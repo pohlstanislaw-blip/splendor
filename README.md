@@ -1,6 +1,6 @@
 # Facets
 
-A lantern-lit gem-trading and engine-building board game for 2–4 players. You can play hot-seat on one screen, against AI opponents, or both.
+A lantern-lit gem-trading and engine-building board game for 2–4 players. You can play hot-seat on one screen, against AI opponents, or online with friends through a small game server you host yourself.
 All art is inline SVG and CSS drawn for this project; the only external assets are two Google Fonts (Cinzel and EB Garamond).
 
 ## Run it
@@ -12,12 +12,66 @@ npm run dev        # open the printed http://localhost:5173
 
 | Command | What it does |
 | --- | --- |
-| `npm test` | Engine and data unit tests (Vitest) |
+| `npm start` | Runs the game server: serves the built game and online rooms on `PORT` (default 8787) |
+| `npm run dev:server` | Game server with auto-restart, for development next to `npm run dev` |
+| `npm test` | Engine, data and server tests (Vitest) |
 | `npm run balance` | Static design-rule check and cost summary of `data.json` |
 | `npm run simulate` | Plays Medium AI against itself at 2, 3 and 4 players and prints a balance report (`-- --games 3000 --write` refreshes `BALANCE.md`) |
 | `npm run build` | Type-check and production build into `dist/` |
 
-The game in progress is saved to `localStorage` after every move, so a page refresh keeps your game.
+A local game is saved to `localStorage` after every move, so a page refresh keeps your game.
+
+## Online play
+
+Choose **Online** in the new-game dialog:
+
+1. **Start a room.** Enter your name, pick 2–4 players, and choose for each other seat whether it's a friend or a bot.
+2. **Invite.** The lobby shows a 5-letter room code and an invite link. Friends open the link (or enter the code under **Join a room**) and type their name. No accounts are needed.
+3. **Play.** The host presses **Start game** once every seat is filled (**Fill with bot** fills an empty seat). Each player sees the table live and can act only on their own turn.
+
+- **Fairness:** the server checks every move with the same rules engine and plays the bots. It sends each player only what that player may see, so other players' face-down cards and the deck order never reach your browser.
+- **Reconnecting:** if you refresh or lose the connection, the page rejoins your room automatically and keeps your seat. If someone leaves for good, the host can **Hand seat to a bot** on that player's panel.
+- **Rooms live in the server's memory.** They disappear when the server restarts or redeploys, and rooms nobody has open are cleared after 6 hours.
+
+Online play needs the game server. The copy of the game on claude.ai has no server, so its Online tab explains this and local play still works there.
+
+## Hosting it yourself
+
+Running the game server on your own computer:
+
+```bash
+npm install
+npm run build
+npm start          # http://localhost:8787
+```
+
+People on your home network can join at `http://<your computer's IP>:8787`. To play with friends elsewhere, deploy it to a host (below) or put your computer behind a tunnel such as Cloudflare Tunnel or Tailscale Funnel.
+
+### Render (set up in this repo)
+
+`render.yaml` describes the service, so Render builds and redeploys on every push to `main`:
+
+1. Sign in at https://render.com with your GitHub account and give it access to this repository.
+2. Choose **New → Blueprint**, pick this repository, and confirm. Render runs `npm ci --include=dev && npm run build`, then `npm start`.
+3. When the deploy finishes, open the `https://facets-….onrender.com` address it shows and share it with friends.
+
+On the **free plan** the server sleeps after about 15 minutes without visitors. The first visit after that takes up to a minute to wake it, and any open rooms are lost. A paid instance stays awake.
+
+### Other hosts
+
+Any host that runs a Node.js 20+ web service with WebSockets works, such as Fly.io, Railway or a small VPS. Use `npm ci --include=dev && npm run build` as the build step and `npm start` as the start command. The server reads `PORT` from the environment and answers health checks at `/healthz`. Static-only hosts such as Netlify or GitHub Pages can serve the game for local play, but not online rooms.
+
+### Developing online play
+
+Run the server and the Vite dev server side by side. Vite forwards `/ws` to the game server:
+
+```bash
+npm run dev:server
+```
+
+```bash
+npm run dev
+```
 
 ## Project layout
 
@@ -28,7 +82,10 @@ src/engine/          pure game logic, no UI imports
   designRules.ts     the card-design rules (used by tests + scripts)
   game.ts            setup, validate(), applyAction(), scoring
   ai.ts              Easy (random) and Medium (greedy) opponents
-src/useGame.ts       React hook: undo snapshot, localStorage, AI timer
+src/useGame.ts       React hook for local games: undo snapshot, localStorage, AI timer
+src/online/          protocol.ts (messages), useOnline.ts (connection, rejoin)
+server/              index.ts (HTTP + WebSocket), rooms.ts (rooms, hidden info), tests
+render.yaml          Render deployment blueprint
 src/App.tsx          board, panels, dialogs
 src/components/      Gem (cuts), CardView (tier frames), CardArt (procedural scenes),
                      Portrait (patron silhouettes), Fx (animations)

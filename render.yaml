@@ -1,0 +1,14 @@
+# Render blueprint: connect this repo at https://dashboard.render.com → New → Blueprint.
+# Every push to main rebuilds and redeploys the game server.
+services:
+  - type: web
+    name: facets
+    runtime: node
+    plan: free            # sleeps after ~15 min idle; open rooms are lost when it sleeps or redeploys
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"

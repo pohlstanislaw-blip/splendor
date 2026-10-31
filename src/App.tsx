@@ -30,13 +30,55 @@ import { Fx } from './components/Fx';
 import { CostPip, GemDefs, GemIcon, TokenChip } from './components/Gem';
 import { Portrait } from './components/Portrait';
 import { useGame } from './useGame';
+import { HIDDEN_PREFIX, type SeatKind, type SeatView } from './online/protocol';
+import { inviteCodeFromUrl, inviteLink, savedName, useOnline, type OnlineApi } from './online/useOnline';
 
 const PLAYER_COLORS = ['#f0b429', '#4fd1c5', '#f687b3', '#9f7aea'];
 const CONTROLLER_LABEL: Record<Controller, string> = { human: 'Human', easy: 'AI · Easy', medium: 'AI · Medium' };
 
 export default function App() {
   const game = useGame();
-  const [showNewGame, setShowNewGame] = useState(!game.session);
+  const online = useOnline();
+  const inviteCode = useMemo(() => inviteCodeFromUrl(), []);
+  const [showNewGame, setShowNewGame] = useState(!game.session || !!inviteCode);
+  const room = online.room;
+
+  if (room?.status === 'playing' && room.state) {
+    return (
+      <Board
+        state={room.state}
+        dispatch={online.act}
+        undo={online.undo}
+        canUndo={room.canUndo}
+        error={online.error}
+        clearError={online.clearError}
+        onNewGame={() => setShowNewGame(true)}
+        online={{
+          code: room.code,
+          you: room.you,
+          seats: room.seats,
+          isHost: room.you !== null && room.seats[room.you].isHost,
+          status: online.status,
+          onLeave: () => {
+            online.leave();
+            setShowNewGame(true);
+          },
+          onRematch: online.rematch,
+          onBotify: online.botify,
+        }}
+      />
+    );
+  }
+
+  if (room?.status === 'lobby') {
+    return (
+      <div className="app">
+        <GemDefs />
+        <div className="lantern-vignette" aria-hidden />
+        <Lobby online={online} />
+      </div>
+    );
+  }
 
   if (!game.session || showNewGame) {
     return (
@@ -50,36 +92,79 @@ export default function App() {
             game.newGame(seats);
             setShowNewGame(false);
           }}
+          online={online}
+          inviteCode={inviteCode}
         />
       </div>
     );
   }
 
-  return <Board game={game} onNewGame={() => setShowNewGame(true)} />;
+  const session = game.session;
+  return (
+    <Board
+      state={session.state}
+      dispatch={game.dispatch}
+      undo={game.undo}
+      canUndo={game.canUndo}
+      error={game.error}
+      clearError={game.clearError}
+      onNewGame={() => setShowNewGame(true)}
+    />
+  );
 }
 
 // ---------------------------------------------------------------------------
 
-function Board({ game, onNewGame }: { game: ReturnType<typeof useGame>; onNewGame: () => void }) {
-  const state = game.session!.state;
-  const { dispatch } = game;
+interface OnlineBoard {
+  code: string;
+  you: number | null;
+  seats: SeatView[];
+  isHost: boolean;
+  status: string;
+  onLeave: () => void;
+  onRematch: () => void;
+  onBotify: (seat: number) => void;
+}
+
+interface BoardProps {
+  state: GameState;
+  dispatch: (a: Action) => void;
+  undo: () => void;
+  canUndo: boolean;
+  error: string | null;
+  clearError: () => void;
+  onNewGame: () => void;
+  /** present when this is an online game */
+  online?: OnlineBoard;
+}
+
+function Board({ state, dispatch, undo, canUndo, error, clearError, onNewGame, online }: BoardProps) {
   const current = state.players[state.current];
   const humans = state.players.filter((p) => p.controller === 'human').length;
-  const isHuman = current.controller === 'human';
+  /** may this screen act for the current seat? */
+  const isHuman = online ? online.you === state.current : current.controller === 'human';
 
   const [revealedTurn, setRevealedTurn] = useState<number | null>(null);
-  const handoff = humans >= 2 && isHuman && state.phase === 'action' && revealedTurn !== state.turn;
+  const handoff = !online && humans >= 2 && isHuman && state.phase === 'action' && revealedTurn !== state.turn;
   const interactive = isHuman && state.phase === 'action' && !handoff;
 
   const [picked, setPicked] = useState<Gem[]>([]);
   useEffect(() => setPicked([]), [state.turn, state.phase]);
 
   /** whose hidden cards may be shown face up right now */
-  const viewer = humans === 0 ? 'all' : isHuman && !handoff ? state.current : null;
+  const viewer = online
+    ? state.phase === 'gameover'
+      ? 'all'
+      : online.you
+    : humans === 0
+      ? 'all'
+      : isHuman && !handoff
+        ? state.current
+        : null;
 
   const reasonFor = (action: Action): string | null => {
     if (state.phase === 'gameover') return 'The game is over.';
-    if (!isHuman) return `Waiting for ${current.name}…`;
+    if (!isHuman) return online && online.you === null ? 'You are watching this game.' : `Waiting for ${current.name}…`;
     if (handoff) return 'Reveal the turn first.';
     return validate(state, action);
   };
@@ -97,15 +182,25 @@ function Board({ game, onNewGame }: { game: ReturnType<typeof useGame>; onNewGam
           <GemIcon gem="garnet" size={26} />
           <span>Facets</span>
         </div>
-        <TurnIndicator state={state} />
+        <TurnIndicator state={state} you={online?.you ?? null} />
         <div className="topbar-actions">
-          <button onClick={onNewGame}>New game</button>
+          {online ? (
+            <>
+              <span className={`room-chip${online.status === 'open' ? '' : ' warn'}`} title={online.status === 'open' ? 'Connected' : 'Reconnecting to the server…'}>
+                Room <b>{online.code}</b>
+                {online.status !== 'open' && ' · reconnecting…'}
+              </span>
+              <button onClick={online.onLeave}>Leave</button>
+            </>
+          ) : (
+            <button onClick={onNewGame}>New game</button>
+          )}
         </div>
       </header>
 
-      {game.error && (
-        <div className="error-toast" onClick={game.clearError}>
-          {game.error}
+      {error && (
+        <div className="error-toast" role="alert" onClick={clearError}>
+          {error}
         </div>
       )}
 
@@ -160,6 +255,8 @@ function Board({ game, onNewGame }: { game: ReturnType<typeof useGame>; onNewGam
               reasonFor={reasonFor}
               dispatch={dispatch}
               isViewer={viewer === i}
+              seat={online?.seats[i]}
+              onBotify={online?.isHost ? () => online.onBotify(i) : undefined}
             />
           ))}
           <ActionLog state={state} />
@@ -173,8 +270,8 @@ function Board({ game, onNewGame }: { game: ReturnType<typeof useGame>; onNewGam
             {state.phase === 'discard' && 'Too many tokens — return some.'}
             {state.phase === 'patron' && 'Choose a visiting patron.'}
           </span>
-          <span title={game.canUndo ? 'Take back this turn' : 'Undo is unavailable after drawing a hidden card'} className="btn-wrap">
-            <button onClick={game.undo} disabled={!game.canUndo}>
+          <span title={canUndo ? 'Take back this turn' : 'Undo is unavailable after drawing a hidden card'} className="btn-wrap">
+            <button onClick={undo} disabled={!canUndo}>
               ↶ Undo turn
             </button>
           </span>
@@ -186,9 +283,9 @@ function Board({ game, onNewGame }: { game: ReturnType<typeof useGame>; onNewGam
         </div>
       )}
 
-      {state.phase === 'discard' && isHuman && <DiscardDialog state={state} dispatch={dispatch} onUndo={game.canUndo ? game.undo : undefined} />}
+      {state.phase === 'discard' && isHuman && <DiscardDialog state={state} dispatch={dispatch} onUndo={canUndo ? undo : undefined} />}
       {state.phase === 'patron' && isHuman && <PatronDialog state={state} dispatch={dispatch} />}
-      {state.phase === 'gameover' && <GameOver state={state} onNewGame={onNewGame} />}
+      {state.phase === 'gameover' && <GameOver state={state} onNewGame={onNewGame} online={online} />}
       {handoff && (
         <div className="modal-backdrop">
           <div className="modal handoff">
@@ -239,14 +336,14 @@ function ActionButton({
 
 // ---------------------------------------------------------------------------
 
-function TurnIndicator({ state }: { state: GameState }) {
+function TurnIndicator({ state, you }: { state: GameState; you: number | null }) {
   const p = state.players[state.current];
   if (state.phase === 'gameover') return <div className="turn-indicator">Game over</div>;
   return (
     <div className="turn-indicator">
       <span className="dot" style={{ background: PLAYER_COLORS[state.current] }} />
       <span>
-        Round {state.round} · <b>{p.name}</b>
+        Round {state.round} · <b>{state.current === you ? 'Your turn' : p.name}</b>
         {p.controller !== 'human' && <span className="thinking"> is thinking…</span>}
       </span>
       {state.finalRound && <span className="final-badge">Final round</span>}
@@ -393,6 +490,8 @@ function PlayerPanel({
   isViewer,
   reasonFor,
   dispatch,
+  seat,
+  onBotify,
 }: {
   state: GameState;
   index: number;
@@ -400,8 +499,13 @@ function PlayerPanel({
   isViewer: boolean;
   reasonFor: (a: Action) => string | null;
   dispatch: (a: Action) => void;
+  /** online seat info (connection status) */
+  seat?: SeatView;
+  /** host-only: hand a disconnected player's seat to a bot */
+  onBotify?: () => void;
 }) {
   const p = state.players[index];
+  const offline = !!seat && seat.kind === 'human' && !seat.connected;
   const b = bonuses(p);
   const isCurrent = state.current === index && state.phase !== 'gameover';
   const total = tokenTotal(p.tokens);
@@ -413,7 +517,10 @@ function PlayerPanel({
           {p.name}
           {index === state.startPlayer && <span className="first-badge" title="Starting player">1st</span>}
         </span>
-        <span className="controller">{CONTROLLER_LABEL[p.controller]}</span>
+        <span className="controller">
+          {seat && isViewer && state.phase !== 'gameover' ? 'You' : CONTROLLER_LABEL[p.controller]}
+          {offline && <span className="offline-badge"> · offline</span>}
+        </span>
         <span className="player-points" title="Prestige">
           {prestige(p)}
           <small>/{WIN_POINTS}</small>
@@ -449,12 +556,19 @@ function PlayerPanel({
           <span className="patron-names">{p.patrons.map((id) => PATRON_BY_ID[id].name).join(', ')}</span>
         </div>
       )}
+      {offline && onBotify && state.phase !== 'gameover' && (
+        <button className="small" onClick={onBotify} title="They left the game. A Medium bot takes over their seat, cards and tokens.">
+          Hand seat to a bot
+        </button>
+      )}
       <div className="reserved">
         <span className="row-label">
           Reserved {p.reserved.length}/{MAX_RESERVED}
         </span>
         <div className="reserved-cards">
           {p.reserved.map((r, i) => {
+            // online, other players' face-down cards arrive as `hidden:<tier>` placeholders
+            if (r.cardId.startsWith(HIDDEN_PREFIX)) return <CardBack key={i} tier={Number(r.cardId.slice(HIDDEN_PREFIX.length)) as Tier} compact label="Hidden" />;
             const card = getCard(r.cardId);
             if (r.hidden && !showHidden) return <CardBack key={i} tier={card.tier} compact label="Hidden" />;
             const canAct = isCurrent && isViewer;
@@ -562,7 +676,23 @@ function PatronDialog({ state, dispatch }: { state: GameState; dispatch: (a: Act
   );
 }
 
-function GameOver({ state, onNewGame }: { state: GameState; onNewGame: () => void }) {
+function GameOver({ state, onNewGame, online }: { state: GameState; onNewGame: () => void; online?: OnlineBoard }) {
+  const nextButtons = online ? (
+    <>
+      <button onClick={online.onLeave}>Leave room</button>
+      {online.isHost ? (
+        <button className="primary" onClick={online.onRematch}>
+          Rematch
+        </button>
+      ) : (
+        <span className="muted">Waiting for the host to start a rematch…</span>
+      )}
+    </>
+  ) : (
+    <button className="primary" onClick={onNewGame}>
+      New game
+    </button>
+  );
   const ranking = useMemo(
     () =>
       state.players
@@ -577,9 +707,7 @@ function GameOver({ state, onNewGame }: { state: GameState; onNewGame: () => voi
       <div className="confirm-bar">
         <span>Game over — {winners.join(' & ')} {winners.length > 1 ? 'share the victory' : 'wins'}.</span>
         <button onClick={() => setHidden(false)}>Show results</button>
-        <button className="primary" onClick={onNewGame}>
-          New game
-        </button>
+        {nextButtons}
       </div>
     );
   return (
@@ -616,9 +744,7 @@ function GameOver({ state, onNewGame }: { state: GameState; onNewGame: () => voi
         </table>
         <div className="modal-actions">
           <button onClick={() => setHidden(true)}>View board</button>
-          <button className="primary" onClick={onNewGame}>
-            New game
-          </button>
+          {nextButtons}
         </div>
       </div>
     </div>
@@ -629,11 +755,16 @@ function NewGameDialog({
   onStart,
   onCancel,
   canCancel,
+  online,
+  inviteCode,
 }: {
   onStart: (seats: SeatConfig[]) => void;
   onCancel: () => void;
   canCancel: boolean;
+  online: OnlineApi;
+  inviteCode: string | null;
 }) {
+  const [tab, setTab] = useState<'local' | 'online'>(inviteCode ? 'online' : 'local');
   const [count, setCount] = useState(2);
   const [seats, setSeats] = useState<SeatConfig[]>([
     { name: 'Player 1', controller: 'human' },
@@ -654,6 +785,107 @@ function NewGameDialog({
         </div>
         <h1>Facets</h1>
         <p className="muted">Trade gems, build workshops, court patrons. First to {WIN_POINTS} prestige ends the round.</p>
+        <div className="tabs" role="tablist">
+          <button role="tab" aria-selected={tab === 'local'} className={tab === 'local' ? 'active' : ''} onClick={() => setTab('local')}>
+            On this device
+          </button>
+          <button role="tab" aria-selected={tab === 'online'} className={tab === 'online' ? 'active' : ''} onClick={() => setTab('online')}>
+            Online
+          </button>
+        </div>
+        {tab === 'online' ? (
+          <OnlinePanel online={online} inviteCode={inviteCode} />
+        ) : (
+          <>
+            <div className="field">
+              <span>Players</span>
+              <div className="seg">
+                {[2, 3, 4].map((n) => (
+                  <button key={n} className={n === count ? 'primary' : ''} onClick={() => setCount(n)}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {seats.slice(0, count).map((s, i) => (
+              <div className="seat" key={i}>
+                <span className="dot" style={{ background: PLAYER_COLORS[i] }} />
+                <input id={`seat-name-${i}`} value={s.name} maxLength={16} onChange={(e) => update(i, { name: e.target.value })} aria-label={`Seat ${i + 1} name`} />
+                <select id={`seat-kind-${i}`} value={s.controller} onChange={(e) => update(i, { controller: e.target.value as Controller })} aria-label={`Seat ${i + 1} controller`}>
+                  <option value="human">Human</option>
+                  <option value="easy">AI · Easy</option>
+                  <option value="medium">AI · Medium</option>
+                </select>
+              </div>
+            ))}
+            <div className="modal-actions">
+              {canCancel && <button onClick={onCancel}>Back to current game</button>}
+              <button
+                className="primary"
+                onClick={() => onStart(seats.slice(0, count).map((s, i) => ({ ...s, name: s.name.trim() || `Player ${i + 1}` })))}
+              >
+                Start game
+              </button>
+            </div>
+            {canCancel && <p className="muted small-print">Starting a new game replaces the saved one.</p>}
+          </>
+        )}
+        {tab === 'online' && canCancel && (
+          <div className="modal-actions">
+            <button onClick={onCancel}>Back to my local game</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const SEAT_KIND_LABEL: Record<SeatKind, string> = { human: 'Friend (invite)', easy: 'AI · Easy', medium: 'AI · Medium' };
+
+function OnlinePanel({ online, inviteCode }: { online: OnlineApi; inviteCode: string | null }) {
+  const [name, setName] = useState(savedName());
+  const [code, setCode] = useState(inviteCode ?? '');
+  const [count, setCount] = useState(2);
+  const [kinds, setKinds] = useState<SeatKind[]>(['human', 'human', 'human']);
+  useEffect(() => online.connect(), [online.connect]);
+
+  if (online.status === 'unavailable') {
+    return (
+      <div className="online-panel">
+        <p>
+          Online play needs the Facets game server, and this copy of the game is running without one. Host the game yourself
+          with <code>npm start</code> or on Render (see the README), then open that address instead.
+        </p>
+        <div className="modal-actions">
+          <button onClick={online.connect}>Try again</button>
+        </div>
+      </div>
+    );
+  }
+
+  const myName = name.trim();
+  const nameReason = myName ? null : 'Enter your name first.';
+  const busy = online.status === 'connecting';
+  return (
+    <div className="online-panel">
+      <label className="field" htmlFor="online-name">
+        <span>Your name</span>
+        <input id="online-name" value={name} maxLength={16} onChange={(e) => setName(e.target.value)} placeholder="How others see you" />
+      </label>
+
+      {inviteCode && (
+        <div className="online-section invite-callout">
+          <h3>You were invited to room {inviteCode}</h3>
+          <span className="btn-wrap" title={nameReason ?? ''}>
+            <button className="primary" disabled={!!nameReason || busy} onClick={() => online.join(inviteCode, myName)}>
+              Join room {inviteCode}
+            </button>
+          </span>
+        </div>
+      )}
+
+      <div className="online-section">
+        <h3>Start a room</h3>
         <div className="field">
           <span>Players</span>
           <div className="seg">
@@ -664,27 +896,135 @@ function NewGameDialog({
             ))}
           </div>
         </div>
-        {seats.slice(0, count).map((s, i) => (
-          <div className="seat" key={i}>
-            <span className="dot" style={{ background: PLAYER_COLORS[i] }} />
-            <input value={s.name} maxLength={16} onChange={(e) => update(i, { name: e.target.value })} aria-label={`Seat ${i + 1} name`} />
-            <select value={s.controller} onChange={(e) => update(i, { controller: e.target.value as Controller })} aria-label={`Seat ${i + 1} controller`}>
-              <option value="human">Human</option>
-              <option value="easy">AI · Easy</option>
-              <option value="medium">AI · Medium</option>
+        <div className="seat">
+          <span className="dot" style={{ background: PLAYER_COLORS[0] }} />
+          <span className="seat-fixed">{myName || 'You'} (host)</span>
+        </div>
+        {Array.from({ length: count - 1 }, (_, k) => (
+          <div className="seat" key={k}>
+            <span className="dot" style={{ background: PLAYER_COLORS[k + 1] }} />
+            <select
+              id={`online-seat-${k + 1}`}
+              value={kinds[k]}
+              onChange={(e) => setKinds(kinds.map((x, j) => (j === k ? (e.target.value as SeatKind) : x)))}
+              aria-label={`Seat ${k + 2}`}
+            >
+              {(['human', 'easy', 'medium'] as SeatKind[]).map((kind) => (
+                <option key={kind} value={kind}>
+                  {SEAT_KIND_LABEL[kind]}
+                </option>
+              ))}
             </select>
           </div>
         ))}
         <div className="modal-actions">
-          {canCancel && <button onClick={onCancel}>Back to current game</button>}
-          <button
-            className="primary"
-            onClick={() => onStart(seats.slice(0, count).map((s, i) => ({ ...s, name: s.name.trim() || `Player ${i + 1}` })))}
-          >
-            Start game
-          </button>
+          <span className="btn-wrap" title={nameReason ?? ''}>
+            <button className="primary" disabled={!!nameReason || busy} onClick={() => online.create(myName, ['human', ...kinds.slice(0, count - 1)])}>
+              Create room
+            </button>
+          </span>
         </div>
-        {canCancel && <p className="muted small-print">Starting a new game replaces the saved one.</p>}
+      </div>
+
+      {!inviteCode && (
+        <div className="online-section">
+          <h3>Join a room</h3>
+          <div className="seat">
+            <input
+              id="online-code"
+              className="code-input"
+              value={code}
+              maxLength={5}
+              placeholder="Room code"
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              aria-label="Room code"
+            />
+            <span className="btn-wrap" title={nameReason ?? (code.trim().length < 5 ? 'Enter the 5-character room code.' : '')}>
+              <button disabled={!!nameReason || code.trim().length < 5 || busy} onClick={() => online.join(code, myName)}>
+                Join
+              </button>
+            </span>
+          </div>
+        </div>
+      )}
+
+      {busy && <p className="muted">Connecting to the server…</p>}
+      {online.error && (
+        <p className="form-error" role="alert">
+          {online.error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Lobby({ online }: { online: OnlineApi }) {
+  const room = online.room!;
+  const me = room.you;
+  const isHost = me !== null && room.seats[me].isHost;
+  const missing = room.seats.filter((s) => !s.taken).length;
+  const link = inviteLink(room.code);
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      (document.getElementById('invite-link') as HTMLInputElement | null)?.select();
+    }
+  };
+  return (
+    <div className="modal-backdrop">
+      <div className="modal lobby">
+        <p className="section-title">Room code</p>
+        <div className="lobby-code" aria-label={`Room code ${room.code.split('').join(' ')}`}>
+          {room.code}
+        </div>
+        <p className="muted">Send friends this link, or tell them the code to enter under Online → Join a room.</p>
+        <div className="invite-row">
+          <input id="invite-link" readOnly value={link} onFocus={(e) => e.currentTarget.select()} aria-label="Invite link" />
+          <button onClick={copy}>{copied ? 'Copied' : 'Copy link'}</button>
+        </div>
+        <ul className="seat-list">
+          {room.seats.map((s, i) => (
+            <li key={i}>
+              <span className="dot" style={{ background: PLAYER_COLORS[i] }} />
+              <span className="seat-name">
+                {s.taken ? s.name : <i className="muted">Waiting for a player…</i>}
+                {i === me && <b className="you-tag"> you</b>}
+              </span>
+              <span className="seat-meta">
+                {s.isHost && 'Host'}
+                {s.kind !== 'human' && 'Bot'}
+                {s.kind === 'human' && s.taken && !s.connected && ' · offline'}
+              </span>
+              {isHost && !s.taken && (
+                <button className="small" onClick={() => online.botify(i)}>
+                  Fill with bot
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+        {online.error && (
+          <p className="form-error" role="alert">
+            {online.error}
+          </p>
+        )}
+        <div className="modal-actions">
+          <button onClick={online.leave}>Leave room</button>
+          {isHost ? (
+            <span className="btn-wrap" title={missing ? `Waiting for ${missing} more player${missing === 1 ? '' : 's'}.` : ''}>
+              <button className="primary" disabled={missing > 0} onClick={online.start}>
+                Start game
+              </button>
+            </span>
+          ) : (
+            <span className="muted">The host starts the game when everyone is here.</span>
+          )}
+        </div>
+        {online.status !== 'open' && <p className="muted small-print">Reconnecting to the server…</p>}
       </div>
     </div>
   );
