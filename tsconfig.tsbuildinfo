@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/main.tsx","./src/useGame.ts","./src/components/CardView.tsx","./src/components/Gem.tsx","./src/engine/ai.ts","./src/engine/data.ts","./src/engine/game.test.ts","./src/engine/game.ts","./src/engine/index.ts","./src/engine/rng.ts","./src/engine/types.ts","./scripts/balance.ts"],"version":"5.6.3"}
