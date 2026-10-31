@@ -4,6 +4,7 @@
    velvet, parchment text panels. Saturated colour is reserved for gems.
    ========================================================================= */
 :root {
+  color-scheme: dark;
   --charcoal: #15120f;
   --stone: #221d19;
   --stone-2: #2c2520;
@@ -99,7 +100,7 @@ input, select {
   background: linear-gradient(180deg, #2a221c, #1a1511);
   border-bottom: 2px solid var(--brass-lo);
   box-shadow: 0 1px 0 var(--brass), 0 6px 18px #0009;
-  position: sticky; top: 0; z-index: 30;
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30;
 }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 900; font-size: 24px; letter-spacing: 0.12em; color: var(--brass-hi); text-shadow: 0 0 12px #ffb34755; }
 .turn-indicator { display: flex; align-items: center; gap: 10px; flex: 1; justify-content: center; font-size: 18px; }
