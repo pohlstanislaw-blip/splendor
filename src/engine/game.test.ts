@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CARDS, PATRONS } from './data';
 import {
@@ -93,6 +94,21 @@ describe('card data', () => {
       expect(total(c)).toBeLessThanOrEqual(cmax);
     }
     expect(new Set(CARDS.map((c) => c.id)).size).toBe(CARDS.length);
+  });
+
+  it('matches data/cards.csv exactly (costs, points, bonus colors)', () => {
+    const color: Record<string, Gem> = { white: 'moonstone', blue: 'lapis', green: 'jade', red: 'garnet', black: 'obsidian' };
+    const [header, ...lines] = readFileSync('data/cards.csv', 'utf8').trim().split(/\r?\n/);
+    const cols = header.split(',');
+    const rows = lines.map((l) => Object.fromEntries(l.split(',').map((v, i) => [cols[i], v])));
+    expect(rows).toHaveLength(CARDS.length);
+    rows.forEach((r, i) => {
+      const c = CARDS[i];
+      expect(c.tier).toBe(Number(r.level));
+      expect(c.bonus).toBe(color[r.bonus_color]);
+      expect(c.points).toBe(Number(r.points));
+      for (const [csvColor, gem] of Object.entries(color)) expect(c.cost[gem] ?? 0).toBe(Number(r[`cost_${csvColor}`]));
+    });
   });
 
   it('has 10 patrons requiring 4+4 or 3+3+3 bonuses', () => {
@@ -236,7 +252,8 @@ describe('reserving', () => {
 });
 
 describe('buying and gold payment', () => {
-  const card = cardWithCost((c) => c.tier === 1 && c.points === 0 && Object.keys(c.cost).length === 3 && Object.values(c.cost).every((v) => v === 1));
+  // a tier 1 card costing 1 each of four different gems
+  const card = cardWithCost((c) => c.tier === 1 && c.points === 0 && Object.keys(c.cost).length === 4 && Object.values(c.cost).every((v) => v === 1));
 
   it('pays exact gems and refills the market', () => {
     const s = game();
@@ -254,12 +271,12 @@ describe('buying and gold payment', () => {
   it('uses gold for missing gems', () => {
     const s = game();
     placeInMarket(s, card.id);
-    const [g1, g2, g3] = Object.keys(card.cost) as Gem[];
-    s.players[0].tokens = tokens({ [g1]: 1, gold: 2 });
+    const [g1, g2, g3, g4] = Object.keys(card.cost) as Gem[];
+    s.players[0].tokens = tokens({ [g1]: 1, gold: 3 });
     s.supply[g1]--;
-    s.supply.gold -= 2;
+    s.supply.gold -= 3;
     const pay = paymentFor(s.players[0], card)!;
-    expect(pay).toMatchObject({ [g1]: 1, [g2]: 0, [g3]: 0, gold: 2 });
+    expect(pay).toMatchObject({ [g1]: 1, [g2]: 0, [g3]: 0, [g4]: 0, gold: 3 });
     const after = act(s, { type: 'buy', source: { kind: 'market', tier: 1, slot: 0 } });
     expect(after.players[0].tokens.gold).toBe(0);
     expect(after.supply.gold).toBe(5);
@@ -268,8 +285,8 @@ describe('buying and gold payment', () => {
 
   it('prefers colored tokens over gold', () => {
     const s = game();
-    const [g1, g2, g3] = Object.keys(card.cost) as Gem[];
-    s.players[0].tokens = tokens({ [g1]: 1, [g2]: 1, [g3]: 1, gold: 2 });
+    const [g1, g2, g3, g4] = Object.keys(card.cost) as Gem[];
+    s.players[0].tokens = tokens({ [g1]: 1, [g2]: 1, [g3]: 1, [g4]: 1, gold: 2 });
     expect(paymentFor(s.players[0], card)!.gold).toBe(0);
   });
 
@@ -277,19 +294,19 @@ describe('buying and gold payment', () => {
     const s = game();
     placeInMarket(s, card.id);
     const [g1] = Object.keys(card.cost) as Gem[];
-    s.players[0].tokens = tokens({ [g1]: 1, gold: 1 });
+    s.players[0].tokens = tokens({ [g1]: 1, gold: 2 });
     expect(validate(s, { type: 'buy', source: { kind: 'market', tier: 1, slot: 0 } })).toMatch(/missing 1/);
   });
 
   it('subtracts permanent bonuses from the cost', () => {
     const s = game();
     placeInMarket(s, card.id);
-    const [g1, g2, g3] = Object.keys(card.cost) as Gem[];
-    s.players[0].cards = bonusCards({ [g1]: 1, [g2]: 1 });
-    s.players[0].tokens = tokens({ [g3]: 1 });
-    expect(paymentFor(s.players[0], card)).toMatchObject({ [g1]: 0, [g2]: 0, [g3]: 1, gold: 0 });
-    s.players[0].tokens = tokens({});
+    const [g1, g2, g3, g4] = Object.keys(card.cost) as Gem[];
     s.players[0].cards = bonusCards({ [g1]: 1, [g2]: 1, [g3]: 1 });
+    s.players[0].tokens = tokens({ [g4]: 1 });
+    expect(paymentFor(s.players[0], card)).toMatchObject({ [g1]: 0, [g2]: 0, [g3]: 0, [g4]: 1, gold: 0 });
+    s.players[0].tokens = tokens({});
+    s.players[0].cards = bonusCards({ [g1]: 1, [g2]: 1, [g3]: 1, [g4]: 1 });
     const after = act(s, { type: 'buy', source: { kind: 'market', tier: 1, slot: 0 } });
     expect(after.players[0].cards).toContain(card.id);
   });
@@ -299,8 +316,8 @@ describe('buying and gold payment', () => {
     s.decks[0] = s.decks[0].filter((x) => x !== card.id);
     s.market[0] = s.market[0].map((x) => (x === card.id ? s.decks[0].pop()! : x));
     s.players[0].reserved = [{ cardId: card.id, hidden: true }];
-    s.players[0].tokens = tokens({ gold: 3 });
-    s.supply.gold = 2;
+    s.players[0].tokens = tokens({ gold: 4 });
+    s.supply.gold = 1;
     const after = act(s, { type: 'buy', source: { kind: 'reserved', index: 0 } });
     expect(after.players[0].reserved).toEqual([]);
     expect(after.players[0].cards).toEqual([card.id]);

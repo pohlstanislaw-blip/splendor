@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "balance": "tsx scripts/balance.ts"
+    "balance": "tsx scripts/balance.ts",
+    "import-cards": "tsx scripts/import-cards.ts"
   },
   "dependencies": {
     "react": "^18.3.1",

@@ -1,7 +1,7 @@
 # Facets
 
 An engine-building gem-trading board game for 2–4 players. You can play hot-seat on one screen, against AI opponents, or both.
-All names, card data and visuals are original.
+Card names, patrons and visuals are original. Card costs, points and bonus colors come from `data/cards.csv`.
 
 ## Run it
 
@@ -15,6 +15,7 @@ Other scripts:
 | Command | What it does |
 | --- | --- |
 | `npm test` | Engine unit tests (Vitest) |
+| `npm run import-cards` | Regenerates the card table in `src/engine/data.ts` from `data/cards.csv` |
 | `npm run balance` | Prints the card-data balance summary (color spread, cost-per-point) |
 | `npm run build` | Type-check and production build into `dist/` |
 
@@ -25,15 +26,18 @@ The game in progress is saved to `localStorage` after every move, so a page refr
 ```
 src/engine/      pure game logic, no UI imports
   types.ts       state / action types
-  data.ts        90 cards + 10 patrons (original)
+  data.ts        90 cards (generated from data/cards.csv) + 10 patrons
   game.ts        setup, validate(), applyAction(), scoring
   ai.ts          Easy (random) and Medium (greedy) opponents
   game.test.ts   rule tests
 src/useGame.ts   React hook: undo snapshot, localStorage, AI timer
 src/App.tsx      board, panels, dialogs
 src/components/  SVG gems and cards
-scripts/balance.ts
+data/cards.csv   card stats source
+scripts/import-cards.ts, scripts/balance.ts
 ```
+
+CSV colors map to gems as: white → Moonstone, blue → Lapis, green → Jade, red → Garnet, black → Obsidian. To change cards, edit the CSV and run `npm run import-cards`. A test checks that `data.ts` matches the CSV.
 
 The UI never changes state itself. It sends `Action`s to `applyAction` and asks `validate` why a move is illegal; those reasons become the disabled-button tooltips.
 
