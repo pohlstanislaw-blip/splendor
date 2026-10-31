@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CARDS, PATRONS } from './data';
 import {
@@ -15,6 +14,8 @@ import {
   validate,
 } from './game';
 import { chooseAiAction } from './ai';
+import { checkDesignRules } from './designRules';
+import { TIER_NAMES } from './data';
 import { GEMS, type Action, type Gem, type GameState, type SeatConfig, type TokenCounts } from './types';
 
 const seats = (n: number): SeatConfig[] =>
@@ -96,19 +97,26 @@ describe('card data', () => {
     expect(new Set(CARDS.map((c) => c.id)).size).toBe(CARDS.length);
   });
 
-  it('matches data/cards.csv exactly (costs, points, bonus colors)', () => {
-    const color: Record<string, Gem> = { white: 'moonstone', blue: 'lapis', green: 'jade', red: 'garnet', black: 'obsidian' };
-    const [header, ...lines] = readFileSync('data/cards.csv', 'utf8').trim().split(/\r?\n/);
-    const cols = header.split(',');
-    const rows = lines.map((l) => Object.fromEntries(l.split(',').map((v, i) => [cols[i], v])));
-    expect(rows).toHaveLength(CARDS.length);
-    rows.forEach((r, i) => {
-      const c = CARDS[i];
-      expect(c.tier).toBe(Number(r.level));
-      expect(c.bonus).toBe(color[r.bonus_color]);
-      expect(c.points).toBe(Number(r.points));
-      for (const [csvColor, gem] of Object.entries(color)) expect(c.cost[gem] ?? 0).toBe(Number(r[`cost_${csvColor}`]));
-    });
+  it('follows the design rules (symmetry, points vs cost, own colour, patron spread)', () => {
+    expect(checkDesignRules(CARDS, PATRONS)).toEqual([]);
+  });
+
+  it('design-rule checker catches violations', () => {
+    const broken = structuredClone(CARDS);
+    const t2 = broken.find((c) => c.tier === 2 && c.points === 3)!;
+    t2.cost = { [t2.bonus]: 6 }; // all own colour, and breaks symmetry
+    const cheapTwo = broken.find((c) => c.tier === 2 && c.points === 1)!;
+    cheapTwo.points = 3; // spread-out card worth as much as a concentrated one
+    const problems = checkDesignRules(broken, PATRONS);
+    expect(problems.some((p) => p.includes('own colour'))).toBe(true);
+    expect(problems.some((p) => p.includes('not the same set'))).toBe(true);
+    const lopsided = structuredClone(PATRONS);
+    lopsided[0].requires = { garnet: 4, jade: 4 };
+    expect(checkDesignRules(CARDS, lopsided).some((p) => p.startsWith('patrons'))).toBe(true);
+  });
+
+  it('uses the tier names', () => {
+    expect(TIER_NAMES).toEqual({ 1: 'Mine Shafts', 2: 'Cutting Workshops', 3: 'Guildhalls' });
   });
 
   it('has 10 patrons requiring 4+4 or 3+3+3 bonuses', () => {

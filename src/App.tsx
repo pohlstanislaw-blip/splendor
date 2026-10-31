@@ -25,7 +25,10 @@ import {
   type Token,
 } from './engine';
 import { CardBack, CardView } from './components/CardView';
-import { CostPip, GemIcon, TokenChip } from './components/Gem';
+import { ArtDefs } from './components/CardArt';
+import { Fx } from './components/Fx';
+import { CostPip, GemDefs, GemIcon, TokenChip } from './components/Gem';
+import { Portrait } from './components/Portrait';
 import { useGame } from './useGame';
 
 const PLAYER_COLORS = ['#f0b429', '#4fd1c5', '#f687b3', '#9f7aea'];
@@ -38,6 +41,8 @@ export default function App() {
   if (!game.session || showNewGame) {
     return (
       <div className="app">
+        <GemDefs />
+        <div className="lantern-vignette" aria-hidden />
         <NewGameDialog
           canCancel={!!game.session}
           onCancel={() => setShowNewGame(false)}
@@ -83,9 +88,13 @@ function Board({ game, onNewGame }: { game: ReturnType<typeof useGame>; onNewGam
 
   return (
     <div className="app">
+      <GemDefs />
+      <ArtDefs />
+      <div className="lantern-vignette" aria-hidden />
+      <Fx state={state} />
       <header className="topbar">
         <div className="brand">
-          <GemIcon gem="lapis" size={22} />
+          <GemIcon gem="garnet" size={26} />
           <span>Facets</span>
         </div>
         <TurnIndicator state={state} />
@@ -120,7 +129,8 @@ function Board({ game, onNewGame }: { game: ReturnType<typeof useGame>; onNewGam
               {state.market[tier - 1].map((id, slot) =>
                 id ? (
                   <CardView
-                    key={slot}
+                    key={id}
+                    fxId={id}
                     card={getCard(id)}
                     bonuses={interactive ? myBonuses : undefined}
                     highlight={interactive && !!paymentFor(current, getCard(id))}
@@ -247,7 +257,7 @@ function TurnIndicator({ state }: { state: GameState }) {
 function Patrons({ state }: { state: GameState }) {
   return (
     <div className="patrons">
-      <div className="section-title">Patrons · 3 prestige each</div>
+      <div className="section-title">Patrons · each visit is worth 3 prestige</div>
       <div className="patron-row">
         {state.patrons.length === 0 && <span className="muted">All patrons have visited.</span>}
         {state.patrons.map((id) => (
@@ -263,13 +273,14 @@ function PatronTile({ id, bonuses: b, onClick }: { id: string; bonuses?: GemCoun
   const Tag = onClick ? 'button' : 'div';
   return (
     <Tag className={`patron${onClick ? ' clickable' : ''}`} onClick={onClick}>
-      <div className="patron-head">
-        <span className="patron-points">{patron.points}</span>
-        <span className="patron-crest" aria-hidden>
-          ◆
+      <div className="patron-top">
+        <Portrait kind={patron.portrait} id={patron.id} size={46} />
+        <span className="patron-points" aria-label={`${patron.points} prestige`}>
+          {patron.points}
         </span>
       </div>
       <div className="patron-name">{patron.name}</div>
+      <div className="patron-title">{patron.title}</div>
       <div className="patron-req">
         {GEMS.filter((g) => patron.requires[g]).map((g) => (
           <CostPip key={g} gem={g} n={patron.requires[g]!} satisfied={b ? b[g] >= patron.requires[g]! : false} />
@@ -329,6 +340,7 @@ function Supply({
           return (
             <button
               key={t}
+              data-fx={`supply-${t}`}
               className={`supply-token${sel ? ' selected' : ''}`}
               disabled={disabledReason !== null}
               title={
@@ -394,7 +406,7 @@ function PlayerPanel({
   const isCurrent = state.current === index && state.phase !== 'gameover';
   const total = tokenTotal(p.tokens);
   return (
-    <div className={`player-panel${isCurrent ? ' current' : ''}`} style={{ ['--pc' as string]: PLAYER_COLORS[index] }}>
+    <div className={`player-panel${isCurrent ? ' current' : ''}`} style={{ ['--pc' as string]: PLAYER_COLORS[index] }} data-fx={`player-${index}`}>
       <div className="player-head">
         <span className="player-name">
           {isCurrent && <span className="turn-arrow">▶ </span>}
@@ -418,13 +430,15 @@ function PlayerPanel({
           ))}
         </div>
       </div>
-      <div className="player-row" title="Permanent bonuses from purchased cards">
-        <span className="row-label">Bonuses ({p.cards.length} cards)</span>
-        <div className="mini-tokens">
+      <div className="player-row" title="Permanent bonuses from purchased cards: each one lowers that gem's cost by 1">
+        <span className="row-label">
+          Card bonuses · {p.cards.length} card{p.cards.length === 1 ? '' : 's'}
+        </span>
+        <div className="bonus-row">
           {GEMS.map((g) => (
-            <span key={g} className={`mini bonus${b[g] ? '' : ' zero'}`}>
-              <GemIcon gem={g} size={16} />
-              {b[g]}
+            <span key={g} className={`bonus-badge${b[g] ? '' : ' zero'}`} aria-label={`${b[g]} ${GEM_LABEL[g]} bonus`}>
+              <GemIcon gem={g} size={18} />
+              <b>{b[g]}</b>
             </span>
           ))}
         </div>

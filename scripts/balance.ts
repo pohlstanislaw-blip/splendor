@@ -1,58 +1,63 @@
-// Prints a balance summary of the Facets card data: color distribution and point-to-cost ratios.
-import { CARDS, PATRONS } from '../src/engine/data';
-import { GEMS, type Card } from '../src/engine/types';
+// Static balance summary of src/engine/data.json: design rules, colour spread, cost-per-point,
+// and how the data differs from the reference list in data/cards.csv.
+// For play-tested numbers run `npm run simulate`.
+import { readFileSync } from 'node:fs';
+import { CARDS, PATRONS, TIER_NAMES } from '../src/engine/data';
+import { cardShape, checkDesignRules, colorCount, maxColor, ownShare, totalCost } from '../src/engine/designRules';
+import { GEMS, type Tier } from '../src/engine/types';
 
-const total = (c: Card) => Object.values(c.cost).reduce((a, b) => a + (b ?? 0), 0);
-const maxColor = (c: Card) => Math.max(...Object.values(c.cost).map((v) => v ?? 0));
-const concentration = (c: Card) => maxColor(c) / total(c);
-let problems = 0;
-const warn = (msg: string) => { problems++; console.log(`  ⚠ ${msg}`); };
-
-const spec = { 1: { n: 40, pts: [0, 1], cost: [3, 5] }, 2: { n: 30, pts: [1, 3], cost: [5, 8] }, 3: { n: 20, pts: [3, 5], cost: [7, 14] } } as const;
-
-for (const tier of [1, 2, 3] as const) {
+for (const tier of [1, 2, 3] as Tier[]) {
   const cards = CARDS.filter((c) => c.tier === tier);
-  const s = spec[tier];
-  console.log(`\nTier ${tier} — ${cards.length} cards`);
-  if (cards.length !== s.n) warn(`expected ${s.n} cards`);
-
-  // color distribution: bonus colors and how much of each gem the tier demands
-  const bonusLine = GEMS.map((g) => `${g}:${cards.filter((c) => c.bonus === g).length}`).join('  ');
-  const demandLine = GEMS.map((g) => `${g}:${cards.reduce((a, c) => a + (c.cost[g] ?? 0), 0)}`).join('  ');
-  console.log(`  bonus colors  ${bonusLine}`);
-  console.log(`  gem demand    ${demandLine}`);
-  const perColor = s.n / 5;
-  for (const g of GEMS) if (cards.filter((c) => c.bonus === g).length !== perColor) warn(`${g} should have ${perColor} cards`);
-  const demands = GEMS.map((g) => cards.reduce((a, c) => a + (c.cost[g] ?? 0), 0));
-  if (Math.max(...demands) - Math.min(...demands) > 0) warn('gem demand is uneven across colors');
-
-  // points vs cost
-  console.log('  pts | cards | avg cost | avg concentration | cost per point');
-  const byPts = new Map<number, Card[]>();
-  for (const c of cards) byPts.set(c.points, [...(byPts.get(c.points) ?? []), c]);
-  let prevCost = -1;
-  let prevConc = -1;
-  for (const pts of [...byPts.keys()].sort((a, b) => a - b)) {
-    const group = byPts.get(pts)!;
-    const avgCost = group.reduce((a, c) => a + total(c), 0) / group.length;
-    const avgConc = group.reduce((a, c) => a + concentration(c), 0) / group.length;
-    const cpp = pts ? (avgCost / pts).toFixed(2) : '—';
-    console.log(`  ${String(pts).padStart(3)} | ${String(group.length).padStart(5)} | ${avgCost.toFixed(2).padStart(8)} | ${avgConc.toFixed(2).padStart(17)} | ${cpp}`);
-    // higher points must be more expensive or more concentrated
-    if (avgCost < prevCost && avgConc <= prevConc) warn(`${pts}-point cards are cheaper AND less concentrated than lower-point cards`);
-    prevCost = avgCost;
-    prevConc = avgConc;
-  }
-  for (const c of cards) {
-    if (c.points < s.pts[0] || c.points > s.pts[1]) warn(`${c.id} points ${c.points} out of range`);
-    if (total(c) < s.cost[0] || total(c) > s.cost[1]) warn(`${c.id} cost ${total(c)} out of range`);
+  console.log(`\nTier ${tier} · ${TIER_NAMES[tier]} — ${cards.length} cards`);
+  console.log(`  bonus colours  ${GEMS.map((g) => `${g}:${cards.filter((c) => c.bonus === g).length}`).join('  ')}`);
+  console.log(`  gem demand     ${GEMS.map((g) => `${g}:${cards.reduce((a, c) => a + (c.cost[g] ?? 0), 0)}`).join('  ')}`);
+  console.log('  shape (same for every colour)          total  max  colours  own%  cost/pt');
+  const seen = new Set<string>();
+  for (const c of cards.filter((x) => x.bonus === GEMS[0])) {
+    const shape = cardShape(c);
+    if (seen.has(shape)) continue;
+    seen.add(shape);
+    const cpp = c.points ? (totalCost(c) / c.points).toFixed(2) : '—';
+    console.log(
+      `  ${shape.padEnd(38)} ${String(totalCost(c)).padStart(5)} ${String(maxColor(c)).padStart(4)} ${String(colorCount(c)).padStart(8)} ${String(Math.round(ownShare(c) * 100)).padStart(5)} ${cpp.padStart(8)}`,
+    );
   }
 }
 
 console.log(`\nPatrons — ${PATRONS.length}`);
-for (const p of PATRONS) console.log(`  ${p.name.padEnd(24)} ${Object.entries(p.requires).map(([g, n]) => `${n} ${g}`).join(' + ')}`);
-const patronDemand = GEMS.map((g) => `${g}:${PATRONS.reduce((a, p) => a + (p.requires[g] ?? 0), 0)}`).join('  ');
-console.log(`  demand        ${patronDemand}`);
+for (const p of PATRONS)
+  console.log(`  ${p.name.padEnd(24)} ${p.title.padEnd(22)} ${Object.entries(p.requires).map(([g, n]) => `${n} ${g}`).join(' + ')}`);
+console.log(`  demand per colour  ${GEMS.map((g) => `${g}:${PATRONS.reduce((a, p) => a + (p.requires[g] ?? 0), 0)}`).join('  ')}`);
 
-console.log(problems ? `\n${problems} issue(s) found.` : '\nBalance checks passed.');
-process.exitCode = problems ? 1 : 0;
+// Difference from the reference CSV (compared per tier & colour as multisets of points+cost).
+try {
+  const MAP: Record<string, string> = { white: 'moonstone', blue: 'lapis', green: 'jade', red: 'garnet', black: 'obsidian' };
+  const [header, ...lines] = readFileSync('data/cards.csv', 'utf8').trim().split(/\r?\n/);
+  const cols = header.split(',');
+  const key = (tier: number, bonus: string, pts: number, cost: Record<string, number>) =>
+    `${tier}|${bonus}|${pts}|${GEMS.map((g) => cost[g] ?? 0).join(',')}`;
+  const ref = new Map<string, number>();
+  for (const l of lines) {
+    const r = Object.fromEntries(l.split(',').map((v, i) => [cols[i], v]));
+    const cost: Record<string, number> = {};
+    for (const [c, g] of Object.entries(MAP)) cost[g] = Number(r[`cost_${c}`]);
+    const k = key(Number(r.level), MAP[r.bonus_color], Number(r.points), cost);
+    ref.set(k, (ref.get(k) ?? 0) + 1);
+  }
+  let same = 0;
+  for (const c of CARDS) {
+    const k = key(c.tier, c.bonus, c.points, c.cost as Record<string, number>);
+    if (ref.get(k)) {
+      same++;
+      ref.set(k, ref.get(k)! - 1);
+    }
+  }
+  console.log(`\nCompared with data/cards.csv: ${same} cards identical, ${CARDS.length - same} changed (see BALANCE.md).`);
+} catch {
+  /* reference CSV not present */
+}
+
+const problems = checkDesignRules(CARDS, PATRONS);
+for (const p of problems) console.log(`  ⚠ ${p}`);
+console.log(problems.length ? `\n${problems.length} design-rule violation(s).` : '\nAll design rules pass.');
+process.exitCode = problems.length ? 1 : 0;

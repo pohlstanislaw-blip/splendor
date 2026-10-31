@@ -16,9 +16,23 @@ export interface Card {
   points: number;
 }
 
+export type PortraitKind =
+  | 'merchant'
+  | 'guildmaster'
+  | 'duchess'
+  | 'knight'
+  | 'scholar'
+  | 'alchemist'
+  | 'forewoman'
+  | 'captain'
+  | 'countess'
+  | 'provost';
+
 export interface Patron {
   id: string;
   name: string;
+  title: string;
+  portrait: PortraitKind;
   requires: Partial<GemCounts>;
   points: number;
 }
