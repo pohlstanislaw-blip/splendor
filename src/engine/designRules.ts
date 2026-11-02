@@ -1,4 +1,8 @@
-// Design rules for the card & patron data. Used by unit tests and `npm run balance`.
+// Checks for the card & patron data. Used by unit tests, `npm run balance` and `npm run simulate`.
+//
+// The card list is fixed to the owner's reference list (data/cards.csv, from their PDF) and is never
+// changed to satisfy these checks. So only structural facts are ERRORS (tier sizes, value ranges,
+// patrons); design guidelines such as colour symmetry are reported as WARNINGS for information.
 import { GEMS, type Card, type Patron, type Tier } from './types';
 
 export const TIER_SPEC: Record<Tier, { perColor: number; points: [number, number]; cost: [number, number] }> = {
@@ -24,9 +28,16 @@ export function cardShape(c: Card): string {
   return `${c.points}pt own${c.cost[c.bonus] ?? 0} [${others.join(',')}]`;
 }
 
-/** Returns a list of human-readable rule violations (empty = all good). */
-export function checkDesignRules(cards: Card[], patrons: Patron[]): string[] {
+export interface DesignReport {
+  /** structural problems: these fail tests */
+  errors: string[];
+  /** design guidelines the data does not follow: informational only */
+  warnings: string[];
+}
+
+export function checkDesignRules(cards: Card[], patrons: Patron[]): DesignReport {
   const problems: string[] = [];
+  const warnings: string[] = [];
   for (const tier of [1, 2, 3] as Tier[]) {
     const spec = TIER_SPEC[tier];
     const inTier = cards.filter((c) => c.tier === tier);
@@ -41,7 +52,7 @@ export function checkDesignRules(cards: Card[], patrons: Patron[]): string[] {
       const t = totalCost(c);
       if (t < spec.cost[0] || t > spec.cost[1]) problems.push(`${c.id}: total cost ${t} outside ${spec.cost.join('–')}`);
       if (ownShare(c) > MAX_OWN_COLOR_SHARE + 1e-9)
-        problems.push(
+        warnings.push(
           `${c.id}: ${Math.round(ownShare(c) * 100)}% of its cost is its own colour (max ${Math.round(MAX_OWN_COLOR_SHARE * 100)}%)`,
         );
     }
@@ -55,10 +66,10 @@ export function checkDesignRules(cards: Card[], patrons: Patron[]): string[] {
         .join(' | ');
     const ref = shapesOf(GEMS[0]);
     for (const g of GEMS.slice(1))
-      if (shapesOf(g) !== ref) problems.push(`tier ${tier}: ${g} cards are not the same set of cost shapes as ${GEMS[0]}`);
+      if (shapesOf(g) !== ref) warnings.push(`tier ${tier}: ${g} cards are not the same set of cost shapes as ${GEMS[0]}`);
     const demand = GEMS.map((g) => inTier.reduce((s, c) => s + (c.cost[g] ?? 0), 0));
     if (new Set(demand).size > 1)
-      problems.push(`tier ${tier}: uneven gem demand ${GEMS.map((g, i) => `${g}:${demand[i]}`).join(' ')}`);
+      warnings.push(`tier ${tier}: uneven gem demand ${GEMS.map((g, i) => `${g}:${demand[i]}`).join(' ')}`);
 
     // More points ⇒ higher total cost, or a cost concentrated in fewer colours.
     for (const hi of inTier)
@@ -69,7 +80,7 @@ export function checkDesignRules(cards: Card[], patrons: Patron[]): string[] {
           maxColor(hi) <= maxColor(lo) &&
           colorCount(hi) >= colorCount(lo)
         )
-          problems.push(`${hi.id} (${hi.points}pt) is no harder to buy than ${lo.id} (${lo.points}pt)`);
+          warnings.push(`${hi.id} (${hi.points}pt) is no harder to buy than ${lo.id} (${lo.points}pt)`);
   }
 
   // Patrons: every colour demanded equally, and equally often.
@@ -81,5 +92,5 @@ export function checkDesignRules(cards: Card[], patrons: Patron[]): string[] {
     const v = Object.values(p.requires).sort().join('+');
     if (v !== '4+4' && v !== '3+3+3') problems.push(`${p.id}: requires ${v}, expected 4+4 or 3+3+3`);
   }
-  return problems;
+  return { errors: problems, warnings };
 }

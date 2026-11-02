@@ -96,21 +96,22 @@ BALANCE.md           design rules, tuning log and the latest simulation report
 
 The UI never changes state itself. It sends `Action`s to `applyAction` and asks `validate` why a move is illegal; those reasons become the disabled-button tooltips.
 
-## Editing `data.json`
+## Card data
 
 All game content lives in `src/engine/data.json`, one card or patron per line:
 
 ```json
-{ "id": "t2-gar-6", "tier": 2, "name": "Vermilion Lathe", "bonus": "garnet", "points": 3, "cost": { "lapis": 5, "moonstone": 1 } }
+{ "id": "t1-gar-1", "tier": 1, "name": "Emberpit Dig", "bonus": "garnet", "points": 0, "cost": { "lapis": 1, "jade": 1, "obsidian": 1, "moonstone": 1 } }
 { "id": "patron-1", "name": "Lady Orvelle Thane", "title": "Merchant Princess", "portrait": "merchant", "points": 3, "requires": { "garnet": 4, "lapis": 4 } }
 ```
 
-- **Gem names** are `garnet`, `lapis`, `jade`, `obsidian` and `moonstone`. Leave a gem out of `cost` (or `requires`) when the amount is 0.
-- **`id`** must be unique. Saved games refer to cards by id, so after renaming an id, start a new game.
-- **`tier`** is 1 (Mine Shafts), 2 (Cutting Workshops) or 3 (Guildhalls). The display names are in `"tiers"` at the top of the file.
-- **`name` and `title`** are free text. Card pictures are generated from the id, so changing a name keeps the same picture.
-- **`portrait`** is one of: `merchant`, `guildmaster`, `duchess`, `knight`, `scholar`, `alchemist`, `forewoman`, `captain`, `countess`, `provost`.
-- The file is checked when the game loads, so a typo in a gem name or tier gives a clear error.
+**The development cards are fixed.** Their costs, points and bonus colours are the owner's reference list from their PDF, stored in `data/cards.csv` with colours mapped as white → Moonstone, blue → Lapis, green → Jade, red → Garnet, black → Obsidian. Never change them. A test fails if `data.json` stops matching the reference, and `npm run balance` reports the match.
+
+What you can edit:
+
+- **Card names** (`name`) and **ids** (`id`). Ids must stay unique. Saved games refer to cards by id, so start a new game after renaming one. Card pictures are generated from the id.
+- **Tier display names**, in `"tiers"` at the top of the file.
+- **Patrons**, which are not part of the reference list. Gems are `garnet`, `lapis`, `jade`, `obsidian` and `moonstone`. `portrait` is one of `merchant`, `guildmaster`, `duchess`, `knight`, `scholar`, `alchemist`, `forewoman`, `captain`, `countess` or `provost`. Each patron needs 4+4 or 3+3+3, with every colour used equally across all patrons.
 
 After editing, run:
 
@@ -118,15 +119,7 @@ After editing, run:
 npm run balance && npm test
 ```
 
-Both check the design rules in `src/engine/designRules.ts`:
-
-1. **Symmetric across colours.** In each tier, every colour has the same set of cost shapes and every gem is demanded equally. To change a card, make the matching change to the same card in the other four colours.
-2. **Points cost something.** Within a tier, a card worth more points must not be easier to buy than a cheaper card in every way. It needs a higher total, a larger single-colour requirement, or fewer colours.
-3. **Mostly other colours.** At most ⅓ of a card's cost may be its own bonus colour.
-4. **Even patrons.** Each colour appears equally often in patron requirements, with the same total, as 4+4 or 3+3+3.
-5. Tier sizes and ranges: 40 / 30 / 20 cards (8 / 6 / 4 per colour), with 0–1, 1–3 and 3–5 points and total costs of 3–5, 5–8 and 7–14.
-
-Then check how the change plays with `npm run simulate`. It flags any cost pattern bought far more or less often than its tier average, any colour imbalance, and any seat advantage. See `BALANCE.md` for the current numbers and how they were tuned.
+`npm run balance` checks structure (tier sizes, ranges, patrons). It also prints design-guideline notes such as colour symmetry, which are informational because the card list is fixed. `npm run simulate` shows how the cards play; see `BALANCE.md`.
 
 ## Rules summary
 

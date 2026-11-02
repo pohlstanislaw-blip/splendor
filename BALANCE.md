@@ -1,45 +1,31 @@
 # Facets — balance notes
 
-Card and patron data live in `src/engine/data.json`. Two tools check them:
+## The card list is fixed
 
-- `npm run balance`: static checks of the design rules (also enforced by unit tests).
-- `npm run simulate -- --games 3000 --write`: plays Medium AI against itself and rewrites the generated report at the bottom of this file.
+The 90 development cards are the owner's reference list from their PDF, stored as `data/cards.csv`. That list is the standard: **costs, points and bonus colours are never changed**, not for balance, symmetry or any other reason. A unit test fails if `src/engine/data.json` stops matching it, and `npm run balance` reports the match.
 
-## Design rules
+Only card names, art and ids belong to this project. Patrons are hand-authored and are not part of the reference list.
 
-1. **Symmetric across colours.** In each tier, every colour has the same set of cost shapes (points, own-colour cost, sorted other costs), and every gem is demanded equally. Shapes are applied by rotating the colour cycle Moonstone → Lapis → Jade → Garnet → Obsidian.
-2. **Points cost something.** Within a tier, a card worth more points must not be easier to buy than a cheaper card in every way. It needs a higher total, a larger single-colour requirement, or fewer colours, so spread-out costs are the cheapest per point.
-3. **Mostly other colours.** At most ⅓ of a card's cost may be its own bonus colour.
-4. **Even patrons.** Every colour appears in the same number of patrons with the same total requirement (17 per colour).
+## What the tools do now
 
-## Starting point and tuning log
+- `npm run balance` checks structure (tier sizes, point and cost ranges, patron rules) and prints design-guideline notes, such as colour symmetry and own-colour costs. Those notes are informational only, because the reference list doesn't follow every guideline. For example, the tier 2 three-pointers cost 6 of their own colour.
+- `npm run simulate -- --games 2000 --write` plays Medium AI against itself and rewrites the report below. It observes how the fixed cards play: seat fairness, game length, how often each card is bought, and how often its holders win. Anything outside the usual ranges is listed as an observation, not a change to make.
 
-The starting point was the 90-card list in `data/cards.csv` (kept for reference), with colours mapped as white → Moonstone, blue → Lapis, green → Jade, red → Garnet, black → Obsidian. In the final data, **54 cards are identical to the CSV and 36 differ.**
+## History
 
-| Step | Change | Why |
-| --- | --- | --- |
-| 1 | Made each tier symmetric by applying the cost pattern most colours already used to all five colours. For example, the white Mine Shaft costing 3 Moonstone + 2 others became a 1 own + 3 + 1 card like the other colours, and the odd red 2 own + 2 card became 2 + 2. | Rule 1 |
-| 1 | Tier 2 three-pointer: 6 of its **own** colour → 6 of another colour. | Rule 3 |
-| 2 | Simulation: the tier 2 three-pointer (6 of one) was bought at 0.51× the tier rate, and the 2-pointer 5 + 3 at 0.72×. Changed them to **5 + 1** and **4 + 3**. | Too rarely bought |
-| 3 | Tried several tier 3 cost sets: 6+3+3+2, 4+4+3+3, 6+1, 6+2, 6+3, 7+1 and 7+2. Every version that made the 4- or 5-pointers cheaper than 9–10 gems made games shorter and more race-like. The 3-player starting-seat edge grew to 7–8 pp, so all of them were rejected. | Seat fairness |
-| 4 | Tier 3 five-pointer: 3 own + 7 → **2 own + 7** (buy rate 0.72× → about 1.0×, and seats stayed fair). | Too rarely bought |
-| 5 | Tier 3 three-pointer: 5+3+3+3 → **5+4+3+2** (same total, more concentrated). Holders' win lift went from +0.17 to about +0.12 above the tier average. | Too strong |
-| — | Tier 1 needed no changes beyond symmetry: every pattern is within ±8% of the tier buy rate. | |
+An earlier version of the game tuned 36 cards away from this list using symmetry rules and simulation. That tuning was reverted at the owner's request, and the reference list has been used unchanged since.
 
-## What the numbers mean, and known limits
+## Reading the numbers
 
-- The report uses a single AI policy (Medium) in mirror matches, so it measures how cards play **for that heuristic**. The Medium AI prefers 3-different-gem takes, so it undervalues single-colour costs; humans will value them more. The tolerances are set wide (0.6–1.4× buy rate, ±0.15 win lift) for this reason.
-- **Starting-player edge** is small: +0.4, +1.1 and +1.6 pp at 2, 3 and 4 players in the final 3,000-game run.
-- **4 players, seat 2** consistently wins a few points below fair (about 20–22%). This happened with every cost set tried, including the original CSV costs, so it doesn't come from the card costs. Two identical greedy AIs sitting next to each other chase the same cards, and the second one loses those races.
-- **Patrons:** 3+3+3 patrons are claimed about 92% of the time when revealed, and 4+4 patrons about 53%. Nine bonuses spread over three colours come naturally from mixed buying, while eight in just two colours need a deliberate plan. The brief fixes these two requirement shapes, so they were left as they are. If you want them closer, 4+4 could become 4+3, or 3+3+3 could become 4+3+3.
-- Rarely, a game reaches the 4,000-step safety cap when every player keeps reserving and no one can afford anything. Those games are counted in the **Unfinished** column and left out of the win statistics.
+- The report uses one AI policy (Medium) in mirror matches, so it shows how cards play **for that heuristic**. The Medium AI prefers taking 3 different gems, so it undervalues single-colour costs; human players will value those cards more.
+- Rarely, a game reaches the 4,000-step safety cap when no one can afford anything. Those games are counted as **Unfinished** and left out of the win statistics.
 
 ## Simulation report
 
 <!-- sim:start -->
-_3000 Medium-AI games per player count (9000 total), generated by `npm run simulate -- --games 3000 --write` in 147.6s._
+_2000 Medium-AI games per player count (6000 total), generated by `npm run simulate -- --games 2000 --write` in 155.5s._
 
-Design rules: all pass ✓
+Card list: the fixed reference list (data/cards.csv, from the PDF). Structural checks: all pass ✓. Design-guideline warnings: 20 (informational; the cards are never changed to clear them).
 
 ### Seats and game length
 
@@ -47,62 +33,67 @@ Seat 1 is the starting player. A fair seat wins 1/N of games.
 
 | Players | Seat 1 | Seat 2 | Seat 3 | Seat 4 | Starting-player edge | Max seat deviation | Avg rounds | Unfinished |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2 | 50.4% | 49.6% | — | — | +0.4 pp | 0.4 pp | 27.66 | 1 |
-| 3 | 34.5% | 35.4% | 30.1% | — | +1.1 pp | 3.2 pp | 26.61 | 0 |
-| 4 | 26.6% | 20.4% | 27.1% | 25.9% | +1.6 pp | 4.6 pp | 25.70 | 0 |
+| 2 | 50.4% | 49.6% | — | — | +0.4 pp | 0.4 pp | 28.82 | 1 |
+| 3 | 31.5% | 32.4% | 36.1% | — | -1.8 pp | 2.7 pp | 27.54 | 0 |
+| 4 | 24.2% | 21.2% | 24.4% | 30.1% | -0.8 pp | 5.1 pp | 26.45 | 0 |
 
 ### Cost patterns (each row is the same card in all 5 colours)
 
-**Buy rate** is the share of games where the card was dealt or reserved and someone bought it, compared with the average for its tier. **Win lift** is how often players holding the card won, divided by how often an average player wins. Rows outside 0.6–1.4× the tier buy rate, or more than ±0.15 from the tier win lift, are flagged ⚠.
+**Buy rate** is the share of games where the card was dealt or reserved and someone bought it, compared with the average for its tier. **Win lift** is how often players holding the card won, divided by how often an average player wins. Rows outside 0.6–1.4× the tier buy rate, or more than ±0.15 from the tier win lift, are marked ⚠ for information only: the card list is fixed and is not tuned.
 
 | Tier | Pattern | Example | Cost | Buy rate | vs tier | Win lift | vs tier |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 0pt own0 [1,1,1,1] | Emberpit Dig | 1 lapis, 1 jade, 1 obsidian, 1 moonstone (4) | 96.5% | ×1.03 | 1.06 | +0.04 |
-| 1 | 0pt own0 [2,1,1,1] | Rustvein Cut | 1 lapis, 1 jade, 1 obsidian, 2 moonstone (5) | 95.7% | ×1.02 | 1.00 | -0.03 |
-| 1 | 0pt own0 [2,2,1] | Cinder Hollow | 1 jade, 2 obsidian, 2 moonstone (5) | 95.1% | ×1.01 | 0.97 | -0.05 |
-| 1 | 0pt own0 [2,1] | Redrock Trench | 2 lapis, 1 jade (3) | 95.9% | ×1.02 | 1.09 | +0.07 |
-| 1 | 0pt own0 [2,2] | Kilnside Pit | 2 lapis, 2 obsidian (4) | 95.3% | ×1.02 | 1.02 | -0.00 |
-| 1 | 0pt own0 [3] | Scarlet Shelf | 3 lapis (3) | 93.2% | ×0.99 | 1.03 | +0.01 |
-| 1 | 0pt own1 [3,1] | Foxglove Seam | 1 garnet, 1 lapis, 3 jade (5) | 92.8% | ×0.99 | 0.96 | -0.06 |
-| 1 | 1pt own0 [4] | Blazestone Run | 4 moonstone (4) | 86.6% | ×0.92 | 1.06 | +0.03 |
-| 1 | **Mine Shafts average** | | | 93.9% | | 1.03 | |
-| 2 | 1pt own0 [3,2,2] | Crucible Forge | 2 lapis, 3 obsidian, 2 moonstone (7) | 89.2% | ×1.22 | 1.00 | -0.10 |
-| 2 | 1pt own2 [3,3] | Flamewright Bench | 2 garnet, 3 lapis, 3 obsidian (8) | 84.7% | ×1.16 | 1.07 | -0.03 |
-| 2 | 2pt own0 [4,2,1] | Rubric Kiln | 4 lapis, 2 jade, 1 moonstone (7) | 82.3% | ×1.13 | 1.14 | +0.04 |
-| 2 | 2pt own0 [5] | Hearthmark Smithy | 5 obsidian (5) | 49.4% | ×0.68 | 1.07 | -0.03 |
-| 2 | 2pt own0 [4,3] | Copperbell Works | 4 lapis, 3 jade (7) | 75.4% | ×1.03 | 1.15 | +0.05 |
-| 2 | 3pt own0 [5,1] | Vermilion Lathe | 5 lapis, 1 moonstone (6) | 57.0% | ×0.78 | 1.19 | +0.09 |
-| 2 | **Cutting Workshops average** | | | 72.9% | | 1.10 | |
-| 3 | 3pt own0 [5,4,3,2] | Hall of the Ember Crown | 5 lapis, 4 jade, 3 obsidian, 2 moonstone (14) | 12.5% | ×0.91 | 1.28 | +0.13 |
-| 3 | 4pt own0 [7] | Sunfire Exchange | 7 jade (7) | 14.9% | ×1.09 | 1.02 | -0.13 |
-| 3 | 4pt own3 [6,3] | Brazier Guild | 3 garnet, 3 lapis, 6 jade (12) | 12.6% | ×0.92 | 1.24 | +0.09 |
-| 3 | 5pt own2 [7] | Crimson Keep | 2 garnet, 7 jade (9) | 14.7% | ×1.08 | 1.08 | -0.07 |
-| 3 | **Guildhalls average** | | | 13.6% | | 1.15 | |
+| 1 | 0pt own0 [3] | Emberpit Dig | 3 moonstone (3) | 94.6% | ×0.99 | 1.05 | +0.02 |
+| 1 | 0pt own1 [3,1] | Rustvein Cut | 1 garnet, 3 obsidian, 1 moonstone (5) | 94.1% | ×0.99 | 1.00 | -0.03 |
+| 1 | 0pt own0 [2,1] | Cinder Hollow | 2 lapis, 1 jade (3) | 96.7% | ×1.01 | 1.07 | +0.04 |
+| 1 | 0pt own0 [2,2,1] | Redrock Trench | 1 jade, 2 obsidian, 2 moonstone (5) | 95.9% | ×1.00 | 1.00 | -0.04 |
+| 1 | 0pt own0 [2,1,1,1] | Kilnside Pit | 1 lapis, 1 jade, 1 obsidian, 2 moonstone (5) | 96.3% | ×1.01 | 0.99 | -0.04 |
+| 1 | 0pt own0 [1,1,1,1] | Scarlet Shelf | 1 lapis, 1 jade, 1 obsidian, 1 moonstone (4) | 96.9% | ×1.02 | 1.04 | +0.01 |
+| 1 | 0pt own2 [2] | Foxglove Seam | 2 garnet, 2 moonstone (4) | 96.0% | ×1.01 | 1.03 | +0.00 |
+| 1 | 1pt own0 [4] | Blazestone Run | 4 moonstone (4) | 93.0% | ×0.97 | 1.08 | +0.05 |
+| 1 | 0pt own0 [2,2] | Indigo Hollow | 2 jade, 2 obsidian (4) | 96.4% | ×1.01 | 1.03 | +0.00 |
+| 1 | 0pt own3 [1,1] | Dewdrop Hollow | 1 lapis, 1 obsidian, 3 moonstone (5) | 92.4% | ×0.97 | 0.96 | -0.07 |
+| 1 | **Mine Shafts average** | | | 95.4% | | 1.03 | |
+| 2 | 1pt own2 [3,3] | Crucible Forge | 2 garnet, 3 lapis, 3 obsidian (8) | 88.4% | ×1.28 | 1.07 | +0.00 |
+| 2 | 1pt own2 [3,2] | Flamewright Bench | 2 garnet, 3 obsidian, 2 moonstone (7) | 91.0% | ×1.32 | 1.00 | -0.06 |
+| 2 | 2pt own0 [4,2,1] | Rubric Kiln | 4 lapis, 2 jade, 1 moonstone (7) | 87.4% | ×1.27 | 1.13 | +0.06 |
+| 2 | 2pt own0 [5,3] | Hearthmark Smithy | 5 obsidian, 3 moonstone (8) | 50.5% | ×0.73 | 1.03 | -0.04 |
+| 2 | 2pt own0 [5] | Copperbell Works | 5 obsidian (5) | 64.6% | ×0.94 | 1.09 | +0.02 |
+| 2 | 3pt own6 [] ⚠ | Vermilion Lathe | 6 garnet (6) | 34.0% | ×0.49 | 1.00 | -0.06 |
+| 2 | 2pt own3 [5] | Wavecrest Lathe | 3 lapis, 5 moonstone (8) | 52.5% | ×0.76 | 1.14 | +0.08 |
+| 2 | 2pt own5 [] | Harbor Polishery | 5 lapis (5) | 58.6% | ×0.85 | 1.01 | -0.05 |
+| 2 | 1pt own0 [3,2,2] | Grovewright Bench | 3 lapis, 2 obsidian, 2 moonstone (7) | 91.6% | ×1.33 | 1.04 | -0.03 |
+| 2 | **Cutting Workshops average** | | | 68.8% | | 1.06 | |
+| 3 | 3pt own0 [5,3,3,3] ⚠ | Hall of the Ember Crown | 5 lapis, 3 jade, 3 obsidian, 3 moonstone (14) | 39.3% | ×1.61 | 1.35 | +0.06 |
+| 3 | 4pt own0 [7] ⚠ | Sunfire Exchange | 7 jade (7) | 17.7% | ×0.73 | 1.11 | -0.19 |
+| 3 | 4pt own3 [6,3] | Brazier Guild | 3 garnet, 3 lapis, 6 jade (12) | 25.1% | ×1.03 | 1.34 | +0.04 |
+| 3 | 5pt own3 [7] | Crimson Keep | 3 garnet, 7 jade (10) | 15.5% | ×0.63 | 1.28 | -0.01 |
+| 3 | **Guildhalls average** | | | 24.5% | | 1.29 | |
 
 ### Colours
 
 | Colour | Cards bought | Share | Win lift of holders |
 | --- | --- | --- | --- |
-| garnet | 84959 | 20.0% | 1.04 |
-| lapis | 84811 | 20.0% | 1.05 |
-| jade | 84784 | 20.0% | 1.05 |
-| obsidian | 84867 | 20.0% | 1.05 |
-| moonstone | 84782 | 20.0% | 1.04 |
+| garnet | 57336 | 20.0% | 1.04 |
+| lapis | 57473 | 20.0% | 1.05 |
+| jade | 57619 | 20.1% | 1.06 |
+| obsidian | 57375 | 20.0% | 1.05 |
+| moonstone | 57433 | 20.0% | 1.05 |
 
 ### Patrons
 
 | Patron | Requires | Revealed | Claimed | Claim rate |
 | --- | --- | --- | --- | --- |
-| Lady Orvelle Thane | 4 garnet + 4 lapis | 3544 | 1985 | 56.0% |
-| Master Quill Harrow | 4 lapis + 4 jade | 3631 | 1750 | 48.2% |
-| Duchess Wren Alcott | 4 jade + 4 obsidian | 3681 | 2113 | 57.4% |
-| Sir Bastian Morrow | 4 obsidian + 4 moonstone | 3590 | 1637 | 45.6% |
-| Archivist Ines Vale | 4 garnet + 4 moonstone | 3640 | 2090 | 57.4% |
-| Magister Corvin Lisle | 3 garnet + 3 lapis + 3 jade | 3590 | 3281 | 91.4% |
-| Dame Petra Holloway | 3 lapis + 3 jade + 3 obsidian | 3654 | 3382 | 92.6% |
-| Envoy Taddeo Brix | 3 jade + 3 obsidian + 3 moonstone | 3580 | 3294 | 92.0% |
-| Countess Mirela Fenn | 3 garnet + 3 obsidian + 3 moonstone | 3561 | 3221 | 90.5% |
-| Provost Aldric Venn | 3 garnet + 3 lapis + 3 moonstone | 3529 | 3247 | 92.0% |
+| Lady Orvelle Thane | 4 garnet + 4 lapis | 2374 | 1259 | 53.0% |
+| Master Quill Harrow | 4 lapis + 4 jade | 2432 | 1524 | 62.7% |
+| Duchess Wren Alcott | 4 jade + 4 obsidian | 2476 | 1519 | 61.3% |
+| Sir Bastian Morrow | 4 obsidian + 4 moonstone | 2369 | 1190 | 50.2% |
+| Archivist Ines Vale | 4 garnet + 4 moonstone | 2414 | 1611 | 66.7% |
+| Magister Corvin Lisle | 3 garnet + 3 lapis + 3 jade | 2391 | 2113 | 88.4% |
+| Dame Petra Holloway | 3 lapis + 3 jade + 3 obsidian | 2429 | 2244 | 92.4% |
+| Envoy Taddeo Brix | 3 jade + 3 obsidian + 3 moonstone | 2351 | 2102 | 89.4% |
+| Countess Mirela Fenn | 3 garnet + 3 obsidian + 3 moonstone | 2399 | 2153 | 89.7% |
+| Provost Aldric Venn | 3 garnet + 3 lapis + 3 moonstone | 2365 | 2072 | 87.6% |
 
 ### Every card
 
@@ -110,98 +101,98 @@ Seat 1 is the starting player. A fair seat wins 1/N of games.
 
 | Card | Tier | Bonus | Pts | Cost | Seen | Buy rate | Win lift |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Emberpit Dig | 1 | garnet | 0 | 1L 1J 1O 1M | 8131 | 96.7% | 1.06 |
-| Rustvein Cut | 1 | garnet | 0 | 1L 1J 1O 2M | 8122 | 95.5% | 1.00 |
-| Cinder Hollow | 1 | garnet | 0 | 1J 2O 2M | 8180 | 95.0% | 0.98 |
-| Redrock Trench | 1 | garnet | 0 | 2L 1J | 8161 | 96.1% | 1.07 |
-| Kilnside Pit | 1 | garnet | 0 | 2L 2O | 8181 | 95.1% | 1.01 |
-| Scarlet Shelf | 1 | garnet | 0 | 3L | 8151 | 93.2% | 1.02 |
-| Foxglove Seam | 1 | garnet | 0 | 1G 1L 3J | 8156 | 92.7% | 0.94 |
-| Blazestone Run | 1 | garnet | 1 | 4M | 8165 | 86.9% | 1.06 |
-| Tidewater Cut | 1 | lapis | 0 | 1G 1J 1O 1M | 8121 | 96.7% | 1.06 |
-| Bluebottle Pit | 1 | lapis | 0 | 2G 1J 1O 1M | 8144 | 95.7% | 0.99 |
-| Mistfall Seam | 1 | lapis | 0 | 2G 2J 1M | 8167 | 94.9% | 0.98 |
-| Gullwing Dig | 1 | lapis | 0 | 2O 1M | 8135 | 95.7% | 1.08 |
-| Deepwell Trench | 1 | lapis | 0 | 2J 2O | 8137 | 95.6% | 1.05 |
-| Saltmarsh Shelf | 1 | lapis | 0 | 3O | 8194 | 93.0% | 1.02 |
-| Indigo Hollow | 1 | lapis | 0 | 1L 1O 3M | 8155 | 92.6% | 0.96 |
-| Riverbend Run | 1 | lapis | 1 | 4G | 8149 | 87.0% | 1.08 |
-| Mossback Dig | 1 | jade | 0 | 1G 1L 1O 1M | 8119 | 96.7% | 1.06 |
-| Fernvale Pit | 1 | jade | 0 | 1G 1L 2O 1M | 8136 | 95.7% | 1.01 |
-| Willowroot Seam | 1 | jade | 0 | 2G 1L 2O | 8154 | 95.4% | 0.97 |
-| Greenshade Cut | 1 | jade | 0 | 1L 2M | 8148 | 96.1% | 1.11 |
-| Thicket Trench | 1 | jade | 0 | 2G 2M | 8162 | 95.3% | 0.99 |
-| Lichen Shelf | 1 | jade | 0 | 3M | 8139 | 93.3% | 1.03 |
-| Bramble Hollow | 1 | jade | 0 | 3L 1J 1M | 8199 | 93.0% | 1.01 |
-| Ivy Run | 1 | jade | 1 | 4O | 8186 | 86.4% | 1.08 |
-| Ashfall Dig | 1 | obsidian | 0 | 1G 1L 1J 1M | 8164 | 96.3% | 1.05 |
-| Nightglass Pit | 1 | obsidian | 0 | 1G 2L 1J 1M | 8144 | 95.9% | 0.98 |
-| Soot Seam | 1 | obsidian | 0 | 1G 2L 2M | 8147 | 94.9% | 0.97 |
-| Ravenrock Cut | 1 | obsidian | 0 | 1G 2J | 8185 | 95.9% | 1.10 |
-| Cinderblack Trench | 1 | obsidian | 0 | 2J 2M | 8133 | 95.4% | 1.05 |
-| Gloom Shelf | 1 | obsidian | 0 | 3J | 8154 | 93.5% | 1.07 |
-| Coalback Hollow | 1 | obsidian | 0 | 3G 1J 1O | 8174 | 92.8% | 0.93 |
-| Shadow Run | 1 | obsidian | 1 | 4L | 8162 | 86.5% | 1.03 |
-| Pearlmist Dig | 1 | moonstone | 0 | 1G 1L 1J 1O | 8153 | 96.2% | 1.07 |
-| Frostline Pit | 1 | moonstone | 0 | 1G 1L 2J 1O | 8108 | 95.8% | 1.00 |
-| Paleglow Seam | 1 | moonstone | 0 | 2L 2J 1O | 8122 | 95.1% | 0.97 |
-| Snowcap Cut | 1 | moonstone | 0 | 2G 1O | 8164 | 95.5% | 1.10 |
-| Chalkwhite Trench | 1 | moonstone | 0 | 2G 2L | 8155 | 95.3% | 1.02 |
-| Silverbirch Shelf | 1 | moonstone | 0 | 3G | 8169 | 93.3% | 1.01 |
-| Dewdrop Hollow | 1 | moonstone | 0 | 1G 3O 1M | 8164 | 92.9% | 0.99 |
-| Starfall Run | 1 | moonstone | 1 | 4J | 8179 | 86.4% | 1.04 |
-| Crucible Forge | 2 | garnet | 1 | 2L 3O 2M | 4984 | 88.1% | 1.01 |
-| Flamewright Bench | 2 | garnet | 1 | 2G 3L 3O | 4985 | 84.0% | 1.03 |
-| Rubric Kiln | 2 | garnet | 2 | 4L 2J 1M | 5050 | 83.2% | 1.13 |
-| Hearthmark Smithy | 2 | garnet | 2 | 5O | 5135 | 49.1% | 1.05 |
-| Copperbell Works | 2 | garnet | 2 | 4L 3J | 4991 | 75.6% | 1.16 |
-| Vermilion Lathe | 2 | garnet | 3 | 5L 1M | 5065 | 56.4% | 1.20 |
-| Cobalt Glassworks | 2 | lapis | 1 | 2G 3J 2O | 4978 | 89.0% | 1.00 |
-| Skyloom Bench | 2 | lapis | 1 | 2L 3J 3O | 4914 | 85.0% | 1.11 |
-| Wavecrest Lathe | 2 | lapis | 2 | 1G 4O 2M | 5021 | 81.9% | 1.13 |
-| Harbor Polishery | 2 | lapis | 2 | 5J | 5045 | 49.5% | 1.08 |
-| Azure Inkhouse | 2 | lapis | 2 | 4O 3M | 5104 | 75.2% | 1.18 |
-| Stormglass Works | 2 | lapis | 3 | 1G 5O | 5055 | 57.3% | 1.17 |
-| Verdant Carvery | 2 | jade | 1 | 3G 2O 2M | 4977 | 90.0% | 1.00 |
-| Grovewright Bench | 2 | jade | 1 | 3G 2J 3M | 4887 | 85.1% | 1.03 |
-| Sagebrush Lathe | 2 | jade | 2 | 2L 1O 4M | 4908 | 81.9% | 1.16 |
-| Orchard Polishery | 2 | jade | 2 | 5G | 5045 | 49.3% | 1.08 |
-| Cedar Toolhouse | 2 | jade | 2 | 3L 4M | 5115 | 74.0% | 1.15 |
-| Leafvein Works | 2 | jade | 3 | 1O 5M | 5087 | 56.1% | 1.13 |
-| Onyx Edgeworks | 2 | obsidian | 1 | 2L 2J 3M | 4951 | 89.4% | 1.04 |
-| Duskwright Bench | 2 | obsidian | 1 | 3J 2O 3M | 5018 | 84.4% | 1.11 |
-| Basalt Lathe | 2 | obsidian | 2 | 2G 1L 4J | 4883 | 82.2% | 1.13 |
-| Midnight Polishery | 2 | obsidian | 2 | 5M | 4986 | 51.0% | 1.09 |
-| Volcanic Toolhouse | 2 | obsidian | 2 | 3G 4J | 5102 | 76.6% | 1.16 |
-| Smokeglass Works | 2 | obsidian | 3 | 1L 5J | 5030 | 56.5% | 1.23 |
-| Opaline Studio | 2 | moonstone | 1 | 2G 3L 2J | 4895 | 89.6% | 0.97 |
-| Lunawright Bench | 2 | moonstone | 1 | 3G 3L 2M | 4975 | 85.3% | 1.05 |
-| Ivory Lathe | 2 | moonstone | 2 | 4G 1J 2O | 4984 | 82.2% | 1.16 |
-| Glimmer Polishery | 2 | moonstone | 2 | 5L | 4975 | 48.1% | 1.05 |
-| Quartzlight Works | 2 | moonstone | 2 | 4G 3O | 5125 | 75.6% | 1.11 |
-| Halo Toolhouse | 2 | moonstone | 3 | 5G 1J | 5042 | 58.5% | 1.19 |
-| Hall of the Ember Crown | 3 | garnet | 3 | 5L 4J 3O 2M | 3064 | 13.5% | 1.40 |
-| Sunfire Exchange | 3 | garnet | 4 | 7J | 3053 | 15.6% | 0.91 |
-| Brazier Guild | 3 | garnet | 4 | 3G 3L 6J | 3096 | 12.7% | 1.16 |
-| Crimson Keep | 3 | garnet | 5 | 2G 7J | 3034 | 15.4% | 1.10 |
-| Hall of the Tidal Seal | 3 | lapis | 3 | 2G 3J 5O 4M | 3147 | 11.9% | 1.29 |
-| Admiralty Exchange | 3 | lapis | 4 | 7M | 2986 | 15.0% | 1.03 |
-| Cartographers Guild | 3 | lapis | 4 | 3L 3O 6M | 3070 | 12.0% | 1.09 |
-| Sapphire Spire | 3 | lapis | 5 | 2L 7M | 3075 | 14.6% | 0.96 |
-| Hall of the Evergreen | 3 | jade | 3 | 3G 4L 2O 5M | 3188 | 11.9% | 1.24 |
-| Gardeners Exchange | 3 | jade | 4 | 7L | 2962 | 15.0% | 1.02 |
-| Herbalists Guild | 3 | jade | 4 | 6L 3J 3M | 3136 | 13.4% | 1.31 |
-| Emerald Terrace | 3 | jade | 5 | 7L 2J | 2984 | 15.1% | 1.02 |
-| Hall of the Black Mirror | 3 | obsidian | 3 | 4G 2L 5J 3M | 3116 | 12.1% | 1.25 |
-| Ironvault Exchange | 3 | obsidian | 4 | 7G | 3076 | 14.0% | 1.12 |
-| Lampless Guild | 3 | obsidian | 4 | 6G 3J 3O | 3083 | 12.2% | 1.25 |
-| Eclipse Citadel | 3 | obsidian | 5 | 7G 2O | 3053 | 13.9% | 1.16 |
-| Hall of the Silver Moon | 3 | moonstone | 3 | 5G 3L 2J 4O | 3165 | 12.8% | 1.22 |
-| Pale Court Exchange | 3 | moonstone | 4 | 7O | 2973 | 14.9% | 1.03 |
-| Astronomers Guild | 3 | moonstone | 4 | 3G 6O 3M | 3079 | 12.6% | 1.36 |
-| Moonrise Tower | 3 | moonstone | 5 | 7O 2M | 2928 | 14.8% | 1.16 |
+| Emberpit Dig | 1 | garnet | 0 | 3M | 5618 | 94.0% | 1.05 |
+| Rustvein Cut | 1 | garnet | 0 | 1G 3O 1M | 5586 | 94.0% | 0.97 |
+| Cinder Hollow | 1 | garnet | 0 | 2L 1J | 5625 | 96.7% | 1.05 |
+| Redrock Trench | 1 | garnet | 0 | 1J 2O 2M | 5617 | 95.9% | 0.96 |
+| Kilnside Pit | 1 | garnet | 0 | 1L 1J 1O 2M | 5642 | 95.7% | 0.98 |
+| Scarlet Shelf | 1 | garnet | 0 | 1L 1J 1O 1M | 5617 | 96.8% | 1.02 |
+| Foxglove Seam | 1 | garnet | 0 | 2G 2M | 5610 | 96.0% | 1.03 |
+| Blazestone Run | 1 | garnet | 1 | 4M | 5599 | 93.0% | 1.10 |
+| Tidewater Cut | 1 | lapis | 0 | 2O 1M | 5588 | 96.8% | 1.08 |
+| Bluebottle Pit | 1 | lapis | 0 | 2G 1J 1O 1M | 5602 | 96.7% | 0.99 |
+| Mistfall Seam | 1 | lapis | 0 | 1G 1J 1O 1M | 5615 | 97.1% | 1.04 |
+| Gullwing Dig | 1 | lapis | 0 | 1G 1L 3J | 5617 | 93.8% | 1.00 |
+| Deepwell Trench | 1 | lapis | 0 | 3O | 5597 | 94.7% | 1.03 |
+| Saltmarsh Shelf | 1 | lapis | 0 | 2G 2J 1M | 5633 | 96.1% | 1.03 |
+| Indigo Hollow | 1 | lapis | 0 | 2J 2O | 5593 | 96.6% | 1.04 |
+| Riverbend Run | 1 | lapis | 1 | 4G | 5628 | 94.1% | 1.07 |
+| Mossback Dig | 1 | jade | 0 | 1L 2M | 5596 | 96.4% | 1.08 |
+| Fernvale Pit | 1 | jade | 0 | 2G 2L | 5619 | 96.2% | 1.02 |
+| Willowroot Seam | 1 | jade | 0 | 3L 1J 1M | 5609 | 94.4% | 1.02 |
+| Greenshade Cut | 1 | jade | 0 | 1G 1L 1O 1M | 5619 | 96.9% | 1.09 |
+| Thicket Trench | 1 | jade | 0 | 1G 1L 2O 1M | 5633 | 96.5% | 0.99 |
+| Lichen Shelf | 1 | jade | 0 | 2G 1L 2O | 5606 | 95.5% | 0.98 |
+| Bramble Hollow | 1 | jade | 0 | 3G | 5620 | 94.8% | 1.07 |
+| Ivy Run | 1 | jade | 1 | 4O | 5604 | 92.4% | 1.08 |
+| Ashfall Dig | 1 | obsidian | 0 | 1G 1L 1J 1M | 5627 | 96.7% | 1.03 |
+| Nightglass Pit | 1 | obsidian | 0 | 1G 2J | 5613 | 96.6% | 1.08 |
+| Soot Seam | 1 | obsidian | 0 | 2J 2M | 5613 | 96.3% | 1.05 |
+| Ravenrock Cut | 1 | obsidian | 0 | 3G 1J 1O | 5632 | 94.1% | 1.00 |
+| Cinderblack Trench | 1 | obsidian | 0 | 3J | 5605 | 94.5% | 1.04 |
+| Gloom Shelf | 1 | obsidian | 0 | 1G 2L 1J 1M | 5603 | 96.2% | 1.00 |
+| Coalback Hollow | 1 | obsidian | 0 | 1G 2L 2M | 5614 | 95.8% | 1.00 |
+| Shadow Run | 1 | obsidian | 1 | 4L | 5605 | 92.8% | 1.08 |
+| Pearlmist Dig | 1 | moonstone | 0 | 2L 2J 1O | 5599 | 96.0% | 1.00 |
+| Frostline Pit | 1 | moonstone | 0 | 2G 1O | 5584 | 97.0% | 1.06 |
+| Paleglow Seam | 1 | moonstone | 0 | 1G 1L 1J 1O | 5595 | 97.2% | 1.03 |
+| Snowcap Cut | 1 | moonstone | 0 | 3L | 5606 | 94.8% | 1.05 |
+| Chalkwhite Trench | 1 | moonstone | 0 | 2L 2J | 5595 | 96.2% | 1.03 |
+| Silverbirch Shelf | 1 | moonstone | 0 | 1G 1L 2J 1O | 5633 | 96.4% | 1.00 |
+| Dewdrop Hollow | 1 | moonstone | 0 | 1L 1O 3M | 5648 | 92.4% | 0.96 |
+| Starfall Run | 1 | moonstone | 1 | 4J | 5613 | 92.7% | 1.10 |
+| Crucible Forge | 2 | garnet | 1 | 2G 3L 3O | 2964 | 88.0% | 1.04 |
+| Flamewright Bench | 2 | garnet | 1 | 2G 3O 2M | 2929 | 91.1% | 0.97 |
+| Rubric Kiln | 2 | garnet | 2 | 4L 2J 1M | 3008 | 87.3% | 1.13 |
+| Hearthmark Smithy | 2 | garnet | 2 | 5O 3M | 3101 | 48.9% | 1.01 |
+| Copperbell Works | 2 | garnet | 2 | 5O | 2948 | 63.7% | 1.06 |
+| Vermilion Lathe | 2 | garnet | 3 | 6G | 2999 | 34.2% | 0.97 |
+| Cobalt Glassworks | 2 | lapis | 1 | 3G 2L 2J | 2963 | 90.9% | 1.03 |
+| Skyloom Bench | 2 | lapis | 1 | 2L 3J 3O | 2919 | 89.3% | 1.09 |
+| Wavecrest Lathe | 2 | lapis | 2 | 3L 5M | 3028 | 49.5% | 1.16 |
+| Harbor Polishery | 2 | lapis | 2 | 5L | 3008 | 58.9% | 1.03 |
+| Azure Inkhouse | 2 | lapis | 2 | 1G 4O 2M | 2978 | 87.3% | 1.13 |
+| Stormglass Works | 2 | lapis | 3 | 6L | 3018 | 34.5% | 1.05 |
+| Verdant Carvery | 2 | jade | 1 | 3G 2J 3M | 3000 | 89.4% | 1.08 |
+| Grovewright Bench | 2 | jade | 1 | 3L 2O 2M | 2900 | 91.4% | 1.06 |
+| Sagebrush Lathe | 2 | jade | 2 | 2L 1O 4M | 2905 | 87.3% | 1.08 |
+| Orchard Polishery | 2 | jade | 2 | 5J | 3007 | 58.2% | 1.00 |
+| Cedar Toolhouse | 2 | jade | 2 | 5L 3J | 3078 | 55.5% | 1.13 |
+| Leafvein Works | 2 | jade | 3 | 6J | 3054 | 33.4% | 1.04 |
+| Onyx Edgeworks | 2 | obsidian | 1 | 2L 2J 3M | 2936 | 91.6% | 1.04 |
+| Duskwright Bench | 2 | obsidian | 1 | 3J 2O 3M | 2895 | 87.8% | 1.07 |
+| Basalt Lathe | 2 | obsidian | 2 | 2G 1L 4J | 2939 | 87.1% | 1.14 |
+| Midnight Polishery | 2 | obsidian | 2 | 5M | 2957 | 66.4% | 1.08 |
+| Volcanic Toolhouse | 2 | obsidian | 2 | 3G 5J | 3100 | 48.7% | 1.08 |
+| Smokeglass Works | 2 | obsidian | 3 | 6O | 3028 | 33.8% | 0.97 |
+| Opaline Studio | 2 | moonstone | 1 | 2G 3J 2O | 2918 | 91.9% | 1.01 |
+| Lunawright Bench | 2 | moonstone | 1 | 3G 3L 2M | 2969 | 87.2% | 1.06 |
+| Ivory Lathe | 2 | moonstone | 2 | 4G 1J 2O | 2954 | 87.8% | 1.15 |
+| Glimmer Polishery | 2 | moonstone | 2 | 5G | 2948 | 63.7% | 1.13 |
+| Quartzlight Works | 2 | moonstone | 2 | 5G 3O | 3107 | 54.0% | 1.00 |
+| Halo Toolhouse | 2 | moonstone | 3 | 6M | 3026 | 34.2% | 0.97 |
+| Hall of the Ember Crown | 3 | garnet | 3 | 5L 3J 3O 3M | 2295 | 39.0% | 1.41 |
+| Sunfire Exchange | 3 | garnet | 4 | 7J | 2302 | 16.4% | 1.19 |
+| Brazier Guild | 3 | garnet | 4 | 3G 3L 6J | 2414 | 25.2% | 1.42 |
+| Crimson Keep | 3 | garnet | 5 | 3G 7J | 2333 | 14.8% | 1.29 |
+| Hall of the Tidal Seal | 3 | lapis | 3 | 3G 3J 5O 3M | 2354 | 39.3% | 1.34 |
+| Admiralty Exchange | 3 | lapis | 4 | 7M | 2296 | 18.9% | 1.17 |
+| Cartographers Guild | 3 | lapis | 4 | 3L 3O 6M | 2362 | 24.2% | 1.25 |
+| Sapphire Spire | 3 | lapis | 5 | 3L 7M | 2310 | 15.8% | 1.23 |
+| Hall of the Evergreen | 3 | jade | 3 | 3G 3L 3O 5M | 2379 | 39.1% | 1.35 |
+| Gardeners Exchange | 3 | jade | 4 | 6L 3J 3M | 2331 | 26.5% | 1.35 |
+| Herbalists Guild | 3 | jade | 4 | 7L | 2327 | 19.4% | 1.10 |
+| Emerald Terrace | 3 | jade | 5 | 7L 3J | 2335 | 18.8% | 1.42 |
+| Hall of the Black Mirror | 3 | obsidian | 3 | 3G 3L 5J 3M | 2341 | 38.2% | 1.36 |
+| Ironvault Exchange | 3 | obsidian | 4 | 7G | 2372 | 16.9% | 0.92 |
+| Lampless Guild | 3 | obsidian | 4 | 6G 3J 3O | 2348 | 25.0% | 1.27 |
+| Eclipse Citadel | 3 | obsidian | 5 | 7G 3O | 2353 | 15.6% | 1.08 |
+| Hall of the Silver Moon | 3 | moonstone | 3 | 5G 3L 3J 3O | 2313 | 41.0% | 1.31 |
+| Pale Court Exchange | 3 | moonstone | 4 | 7O | 2284 | 17.2% | 1.16 |
+| Astronomers Guild | 3 | moonstone | 4 | 3G 6O 3M | 2351 | 24.6% | 1.39 |
+| Moonrise Tower | 3 | moonstone | 5 | 7O 3M | 2208 | 12.3% | 1.38 |
 
 </details>
 
-**No flags:** every pattern is within range, colours are even, the starting-player edge is within 3 pp and every seat is within 5 pp of fair.
+**Observations (4, informational — the card list is fixed):** 4p seat imbalance 5.1%; T2 3pt own6 []: buy ×0.49, lift -0.06; T3 3pt own0 [5,3,3,3]: buy ×1.61, lift +0.06; T3 4pt own0 [7]: buy ×0.73, lift -0.19
 <!-- sim:end -->

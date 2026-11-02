@@ -1,5 +1,5 @@
-// Static balance summary of src/engine/data.json: design rules, colour spread, cost-per-point,
-// and how the data differs from the reference list in data/cards.csv.
+// Static summary of src/engine/data.json: structural checks, design-guideline notes, colour spread,
+// cost-per-point, and whether the cards still match the fixed reference list in data/cards.csv.
 // For play-tested numbers run `npm run simulate`.
 import { readFileSync } from 'node:fs';
 import { CARDS, PATRONS, TIER_NAMES } from '../src/engine/data';
@@ -52,12 +52,17 @@ try {
       ref.set(k, ref.get(k)! - 1);
     }
   }
-  console.log(`\nCompared with data/cards.csv: ${same} cards identical, ${CARDS.length - same} changed (see BALANCE.md).`);
+  console.log(`\nCompared with data/cards.csv (the fixed reference list): ${same} of ${CARDS.length} cards identical${same === CARDS.length ? ' ✓' : ' — MISMATCH, restore data.json from the reference'}.`);
+  if (same !== CARDS.length) process.exitCode = 1;
 } catch {
   /* reference CSV not present */
 }
 
-const problems = checkDesignRules(CARDS, PATRONS);
-for (const p of problems) console.log(`  ⚠ ${p}`);
-console.log(problems.length ? `\n${problems.length} design-rule violation(s).` : '\nAll design rules pass.');
-process.exitCode = problems.length ? 1 : 0;
+const report = checkDesignRules(CARDS, PATRONS);
+for (const w of report.warnings) console.log(`  · guideline: ${w}`);
+for (const e of report.errors) console.log(`  ⚠ ${e}`);
+console.log(
+  `\n${report.warnings.length} design-guideline note(s) (informational: the card list is fixed and never changed for balance).`,
+);
+console.log(report.errors.length ? `${report.errors.length} structural error(s).` : 'Structural checks pass.');
+if (report.errors.length) process.exitCode = 1;

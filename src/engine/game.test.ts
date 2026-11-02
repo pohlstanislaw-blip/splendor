@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CARDS, PATRONS } from './data';
 import {
@@ -97,8 +98,26 @@ describe('card data', () => {
     expect(new Set(CARDS.map((c) => c.id)).size).toBe(CARDS.length);
   });
 
-  it('follows the design rules (symmetry, points vs cost, own colour, patron spread)', () => {
-    expect(checkDesignRules(CARDS, PATRONS)).toEqual([]);
+  it('is exactly the reference card list (data/cards.csv, from the PDF) — never changed for balance', () => {
+    const colour: Record<string, Gem> = { white: 'moonstone', blue: 'lapis', green: 'jade', red: 'garnet', black: 'obsidian' };
+    const [header, ...lines] = readFileSync('data/cards.csv', 'utf8').trim().split(/\r?\n/);
+    const cols = header.split(',');
+    const key = (tier: number, bonus: string, points: number, cost: Partial<Record<Gem, number>>) =>
+      `${tier}|${bonus}|${points}|${GEMS.map((g) => cost[g] ?? 0).join(',')}`;
+    const reference = lines
+      .map((l) => Object.fromEntries(l.split(',').map((v, i) => [cols[i], v])))
+      .map((r) => {
+        const cost: Partial<Record<Gem, number>> = {};
+        for (const [c, g] of Object.entries(colour)) cost[g] = Number(r[`cost_${c}`]);
+        return key(Number(r.level), colour[r.bonus_color], Number(r.points), cost);
+      })
+      .sort();
+    expect(reference).toHaveLength(90);
+    expect(CARDS.map((c) => key(c.tier, c.bonus, c.points, c.cost)).sort()).toEqual(reference);
+  });
+
+  it('passes the structural checks (tier sizes, ranges, patrons)', () => {
+    expect(checkDesignRules(CARDS, PATRONS).errors).toEqual([]);
   });
 
   it('design-rule checker catches violations', () => {
@@ -107,12 +126,14 @@ describe('card data', () => {
     t2.cost = { [t2.bonus]: 6 }; // all own colour, and breaks symmetry
     const cheapTwo = broken.find((c) => c.tier === 2 && c.points === 1)!;
     cheapTwo.points = 3; // spread-out card worth as much as a concentrated one
-    const problems = checkDesignRules(broken, PATRONS);
-    expect(problems.some((p) => p.includes('own colour'))).toBe(true);
-    expect(problems.some((p) => p.includes('not the same set'))).toBe(true);
+    const { warnings } = checkDesignRules(broken, PATRONS);
+    expect(warnings.some((p) => p.includes('own colour'))).toBe(true);
+    expect(warnings.some((p) => p.includes('not the same set'))).toBe(true);
     const lopsided = structuredClone(PATRONS);
     lopsided[0].requires = { garnet: 4, jade: 4 };
-    expect(checkDesignRules(CARDS, lopsided).some((p) => p.startsWith('patrons'))).toBe(true);
+    expect(checkDesignRules(CARDS, lopsided).errors.some((p) => p.startsWith('patrons'))).toBe(true);
+    const short = CARDS.filter((c) => c.id !== CARDS[0].id);
+    expect(checkDesignRules(short, PATRONS).errors.some((p) => p.includes('expected 8'))).toBe(true);
   });
 
   it('uses the tier names', () => {
