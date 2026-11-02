@@ -443,3 +443,82 @@ input, select {
 .room-chip.warn { border-color: #a8475b; color: #ffb4a8; }
 .topbar-actions { display: flex; gap: 8px; align-items: center; }
 .offline-badge { color: #ffb4a8; }
+
+/* =========================================================================
+   Card faces: full-bleed illustration, translucent top band with points and
+   bonus gem, round cost tokens stacked in the bottom-left corner.
+   Sizes inside a face scale with the card's own width (cqw).
+   ========================================================================= */
+:root { --card-w: clamp(118px, calc(((100vh - 112px) / 3 - 40px) * 5 / 7), 196px); }
+/* market beside a column of patrons; supply below both */
+.board { display: grid; grid-template-columns: minmax(0, auto) minmax(128px, 156px); grid-template-areas: "market patrons" "supply supply"; align-items: start; justify-content: start; }
+.board > .market { grid-area: market; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.board > .patrons { grid-area: patrons; }
+.board > .supply { grid-area: supply; }
+.board > .patrons .patron-row { flex-direction: column; flex-wrap: nowrap; }
+.board > .patrons .patron { width: 100%; }
+@media (max-width: 960px) {
+  .board { grid-template-columns: minmax(0, 1fr); grid-template-areas: "patrons" "market" "supply"; }
+  .board > .patrons .patron-row { flex-direction: row; flex-wrap: wrap; }
+  .board > .patrons .patron { width: 138px; }
+}
+/* market columns hug the cards instead of stretching (no gaps between narrow cards) */
+.market-row { grid-template-columns: repeat(5, minmax(0, var(--card-w))); justify-content: start; column-gap: clamp(8px, 1.4vw, 18px); }
+.card-slot { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.card.face {
+  container-type: inline-size;
+  position: relative; display: block; padding: 0; gap: 0; min-height: 0;
+  width: min(100%, var(--card-w)); aspect-ratio: 5 / 7;
+  border-radius: 7% / 5%; overflow: hidden; background: #120e0b;
+  box-shadow: 0 0 0 1px #0009, 0 0 0 2px #f4ead1, 0 6px 14px #000c;
+}
+.card.face .card-art { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; }
+.card.face.affordable { box-shadow: 0 0 0 1px #0009, 0 0 0 3px var(--good), 0 0 20px #8fd18b99, 0 6px 14px #000c; }
+.face-band {
+  position: absolute; left: 0; right: 0; top: 0; height: 21%;
+  display: flex; align-items: center; justify-content: space-between; padding: 0 7% 0 6%;
+  background: linear-gradient(180deg, #ffffffb8, #ffffff80 70%, #ffffff55);
+  backdrop-filter: blur(1.5px);
+  box-shadow: 0 1px 0 #ffffff66, 0 3px 6px #0004;
+}
+.face-points {
+  font-family: var(--font-body); font-style: italic; font-weight: 700; line-height: 1;
+  font-size: 27cqw; color: #fff;
+  text-shadow: 0 0 2px #000, 0 0 6px #000a, 0 1px 1px #000, 0 0 14px var(--bonus-glow);
+}
+.face-bonus { display: grid; place-items: center; filter: drop-shadow(0 0 5px var(--bonus-glow)) drop-shadow(0 1px 1px #000); }
+.face-bonus svg { width: 23cqw; height: 23cqw; }
+.face-costs {
+  position: absolute; left: 5%; bottom: 4%;
+  display: flex; flex-direction: column-reverse; gap: 2.5cqw;
+}
+.face-tier { position: absolute; right: 6%; bottom: 3.5%; font-size: 6cqw; letter-spacing: 1cqw; color: #f4ead1; opacity: 0.7; text-shadow: 0 1px 2px #000; }
+
+.cost-token {
+  position: relative; display: inline-grid; place-items: center; flex: none; border-radius: 50%;
+  width: 23cqw; height: 23cqw; font-size: 14.5cqw;
+  background: radial-gradient(circle at 35% 30%, var(--light), var(--fill) 55%, var(--dark));
+  border: max(1.5px, 1.6cqw) solid #fffaf0;
+  box-shadow: 0 1px 3px #000b, inset 0 -2px 3px #0005;
+}
+.cost-token b {
+  position: relative; font-family: var(--font-body); font-style: italic; font-weight: 700; line-height: 1;
+  color: #fff; text-shadow: 0 0 2px #000, 0 1px 1px #000;
+}
+.cost-token.light b { color: #2d3546; text-shadow: 0 0 2px #fff; }
+.cost-cut { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0.38; pointer-events: none; }
+.cost-cut svg { width: 82%; height: 82%; filter: grayscale(0.2) brightness(1.5); }
+.cost-token.light .cost-cut { opacity: 0.45; }
+.cost-cut .gem-icon * { stroke-width: 1.2; }
+.cost-token.ok { border-color: var(--good); box-shadow: 0 0 0 1px #0008, 0 0 8px #8fd18bcc; }
+
+.card.face.compact { width: 92px; box-shadow: 0 0 0 1px #0009, 0 0 0 1.5px #f4ead1, 0 3px 8px #000b; }
+.card-slot.compact { gap: 4px; }
+.card-slot .card-buttons { padding: 0; }
+
+/* deck tiles match the card size */
+.deck-slot .card-back { width: min(100%, var(--card-w)); aspect-ratio: 5 / 7; min-height: 0; }
+.market-row { align-items: start; }
+@media (max-width: 640px) { .market-row { grid-template-columns: repeat(2, minmax(0, var(--card-w))); } }
+.market-row > .empty-slot { width: min(100%, var(--card-w)); aspect-ratio: 5 / 7; min-height: 0; justify-self: center; }
+.card-back.compact { width: 92px; aspect-ratio: 5 / 7; min-height: 0; }

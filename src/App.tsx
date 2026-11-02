@@ -207,6 +207,7 @@ function Board({ state, dispatch, undo, canUndo, error, clearError, onNewGame, o
       <main className="layout">
         <section className="board">
           <Patrons state={state} />
+          <div className="market">
           {([3, 2, 1] as Tier[]).map((tier) => (
             <div className="market-row" key={tier}>
               <div className="deck-slot">
@@ -242,6 +243,7 @@ function Board({ state, dispatch, undo, canUndo, error, clearError, onNewGame, o
               )}
             </div>
           ))}
+          </div>
           <Supply state={state} picked={picked} setPicked={setPicked} interactive={interactive} reasonFor={reasonFor} dispatch={dispatch} />
         </section>
 
@@ -354,7 +356,7 @@ function TurnIndicator({ state, you }: { state: GameState; you: number | null })
 function Patrons({ state }: { state: GameState }) {
   return (
     <div className="patrons">
-      <div className="section-title">Patrons · each visit is worth 3 prestige</div>
+      <div className="section-title" title="Each patron visit is worth 3 prestige">Patrons · 3 each</div>
       <div className="patron-row">
         {state.patrons.length === 0 && <span className="muted">All patrons have visited.</span>}
         {state.patrons.map((id) => (

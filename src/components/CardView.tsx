@@ -1,7 +1,7 @@
-import type { Card, GemCounts, Tier } from '../engine';
-import { GEMS, TIER_NAMES } from '../engine';
+import type { Card, Gem, GemCounts, Tier } from '../engine';
+import { GEMS, GEM_LABEL, TIER_NAMES } from '../engine';
 import { CardArt } from './CardArt';
-import { CostPip, GEM_COLORS, GemIcon } from './Gem';
+import { GEM_COLORS, GEM_CUT, GemIcon } from './Gem';
 
 export interface CardButton {
   label: string;
@@ -25,6 +25,28 @@ function Filigree() {
   );
 }
 
+/**
+ * A round cost token: gem-coloured disc with a white rim and a large number. A faint outline of
+ * the gem's cut sits behind the number so the colour is never the only cue.
+ */
+export function CostToken({ gem, n, satisfied, size }: { gem: Gem; n: number; satisfied?: boolean; size?: number }) {
+  const c = GEM_COLORS[gem];
+  const light = gem === 'moonstone';
+  return (
+    <span
+      className={`cost-token${satisfied ? ' ok' : ''}${light ? ' light' : ''}`}
+      style={{ ['--fill' as string]: c.fill, ['--light' as string]: c.light, ['--dark' as string]: c.dark, ...(size ? { width: size, height: size, fontSize: size * 0.62 } : {}) }}
+      title={`${n} ${GEM_LABEL[gem]} (${GEM_CUT[gem]})${satisfied ? ' — covered by your bonuses' : ''}`}
+      aria-label={`${n} ${GEM_LABEL[gem]}`}
+    >
+      <span className="cost-cut" aria-hidden>
+        <GemIcon gem={gem} size={24} />
+      </span>
+      <b>{n}</b>
+    </span>
+  );
+}
+
 export function CardView({
   card,
   bonuses,
@@ -42,40 +64,34 @@ export function CardView({
   fxId?: string;
 }) {
   const c = GEM_COLORS[card.bonus];
+  const costs = GEMS.filter((g) => card.cost[g]);
   return (
-    <div
-      className={`card ${FRAME[card.tier]} tier-${card.tier}${highlight ? ' affordable' : ''}${compact ? ' compact' : ' deal'}`}
-      style={{ ['--bonus' as string]: c.fill, ['--bonus-glow' as string]: c.glow }}
-      data-card-id={fxId}
-    >
-      {card.tier === 3 && (
-        <>
-          <span className="corner tl"><Filigree /></span>
-          <span className="corner tr"><Filigree /></span>
-          <span className="corner bl"><Filigree /></span>
-          <span className="corner br"><Filigree /></span>
-        </>
-      )}
-      <div className="card-art-wrap">
-        {!compact && <CardArt card={card} />}
-        <div className="card-head">
-          <span className="card-points" aria-label={`${card.points} prestige`}>
+    <div className={`card-slot${compact ? ' compact' : ''}`}>
+      <div
+        className={`card face tier-${card.tier}${highlight ? ' affordable' : ''}${compact ? ' compact' : ' deal'}`}
+        style={{ ['--bonus' as string]: c.fill, ['--bonus-glow' as string]: c.glow }}
+        data-card-id={fxId}
+        title={`${card.name} · ${TIER_NAMES[card.tier]}`}
+        role="group"
+        aria-label={`${card.name}: ${card.points} prestige, ${card.bonus} bonus, costs ${costs.map((g) => `${card.cost[g]} ${g}`).join(', ')}`}
+      >
+        <CardArt card={card} />
+        <div className="face-band">
+          <span className="face-points" aria-hidden>
             {card.points || ''}
           </span>
-          <span className="card-bonus" title={`Permanent bonus: ${card.bonus}`}>
-            <GemIcon gem={card.bonus} size={compact ? 20 : 26} />
+          <span className="face-bonus" title={`Permanent bonus: ${GEM_LABEL[card.bonus]}`}>
+            <GemIcon gem={card.bonus} size={compact ? 22 : 30} />
           </span>
         </div>
-      </div>
-      <div className="card-parchment">
-        <div className="card-name" title={card.name}>
-          {card.name}
-        </div>
-        <div className="card-cost">
-          {GEMS.filter((g) => card.cost[g]).map((g) => (
-            <CostPip key={g} gem={g} n={card.cost[g]!} satisfied={bonuses ? bonuses[g] >= card.cost[g]! : false} />
+        <div className="face-costs">
+          {costs.map((g) => (
+            <CostToken key={g} gem={g} n={card.cost[g]!} satisfied={bonuses ? bonuses[g] >= card.cost[g]! : false} />
           ))}
         </div>
+        <span className="face-tier" aria-hidden>
+          {'◆'.repeat(card.tier)}
+        </span>
       </div>
       {buttons.length > 0 && (
         <div className="card-buttons">
