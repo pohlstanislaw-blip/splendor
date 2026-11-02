@@ -164,6 +164,17 @@ describe('rooms', () => {
     expect(b.room().seats[1].isHost).toBe(true);
   });
 
+  it('keeps names unique within a room', () => {
+    const rm = new RoomManager({ aiDelayMs: 10, random: rand });
+    const a = client(rm, 'a');
+    a.send({ t: 'create', name: 'Ana', seats: ['human', 'human', 'medium', 'medium'] });
+    const b = client(rm, 'b');
+    b.send({ t: 'join', code: a.room().code, name: 'ana' });
+    const names = b.room().seats.map((s) => s.name);
+    expect(new Set(names.map((n) => n.toLowerCase())).size).toBe(4);
+    expect(names[1]).toBe('ana 2');
+  });
+
   it('ignores malformed messages', () => {
     const rm = new RoomManager();
     const a = client(rm, 'a');

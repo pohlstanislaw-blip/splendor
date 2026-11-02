@@ -32,6 +32,7 @@ import { Portrait } from './components/Portrait';
 import { useGame } from './useGame';
 import { HIDDEN_PREFIX, type SeatKind, type SeatView } from './online/protocol';
 import { inviteCodeFromUrl, inviteLink, savedName, useOnline, type OnlineApi } from './online/useOnline';
+import { ordinal, personalizeLog, placeOf, seatOrderFrom } from './online/perspective';
 
 const PLAYER_COLORS = ['#f0b429', '#4fd1c5', '#f687b3', '#9f7aea'];
 const CONTROLLER_LABEL: Record<Controller, string> = { human: 'Human', easy: 'AI · Easy', medium: 'AI · Medium' };
@@ -171,6 +172,26 @@ function Board({ state, dispatch, undo, canUndo, error, clearError, onNewGame, o
 
   const myBonuses = bonuses(current);
 
+  // Online: arrange everything around this player.
+  const seated = !!online && online.you !== null;
+  const order = online ? seatOrderFrom(state.players.length, online.you) : state.players.map((_, i) => i);
+  const myTurnStarts = seated && state.current === online!.you && state.phase === 'action';
+  const [banner, setBanner] = useState(false);
+  useEffect(() => {
+    if (!myTurnStarts) return;
+    setBanner(true);
+    const t = window.setTimeout(() => setBanner(false), 2200);
+    return () => window.clearTimeout(t);
+  }, [myTurnStarts, state.turn]);
+  useEffect(() => {
+    if (!online) return;
+    const yourTurn = seated && state.current === online.you && state.phase !== 'gameover';
+    document.title = yourTurn ? '● Your turn · Facets' : 'Facets';
+    return () => {
+      document.title = 'Facets';
+    };
+  }, [online, seated, state.current, state.phase]);
+
   return (
     <div className="app">
       <GemDefs />
@@ -198,6 +219,11 @@ function Board({ state, dispatch, undo, canUndo, error, clearError, onNewGame, o
         </div>
       </header>
 
+      {banner && (
+        <div className="turn-banner" role="status">
+          Your turn
+        </div>
+      )}
       {error && (
         <div className="error-toast" role="alert" onClick={clearError}>
           {error}
@@ -247,10 +273,11 @@ function Board({ state, dispatch, undo, canUndo, error, clearError, onNewGame, o
           <Supply state={state} picked={picked} setPicked={setPicked} interactive={interactive} reasonFor={reasonFor} dispatch={dispatch} />
         </section>
 
-        <aside className="side">
-          {state.players.map((_, i) => (
+        <aside className={`side${seated ? ' personal' : ''}`}>
+          {order.map((i) => (
             <PlayerPanel
               key={i}
+              variant={!seated ? 'normal' : i === online!.you ? 'self' : 'opponent'}
               state={state}
               index={i}
               showHidden={viewer === 'all' || viewer === i}
@@ -261,7 +288,7 @@ function Board({ state, dispatch, undo, canUndo, error, clearError, onNewGame, o
               onBotify={online?.isHost ? () => online.onBotify(i) : undefined}
             />
           ))}
-          <ActionLog state={state} />
+          <ActionLog state={state} myName={seated ? state.players[online!.you!].name : null} />
         </aside>
       </main>
 
@@ -345,7 +372,7 @@ function TurnIndicator({ state, you }: { state: GameState; you: number | null })
     <div className="turn-indicator">
       <span className="dot" style={{ background: PLAYER_COLORS[state.current] }} />
       <span>
-        Round {state.round} · <b>{state.current === you ? 'Your turn' : p.name}</b>
+        Round {state.round} · <b>{state.current === you ? 'Your turn' : you !== null ? `${p.name}'s turn` : p.name}</b>
         {p.controller !== 'human' && <span className="thinking"> is thinking…</span>}
       </span>
       {state.finalRound && <span className="final-badge">Final round</span>}
@@ -494,7 +521,9 @@ function PlayerPanel({
   dispatch,
   seat,
   onBotify,
+  variant = 'normal',
 }: {
+  variant?: 'normal' | 'self' | 'opponent';
   state: GameState;
   index: number;
   showHidden: boolean;
@@ -512,15 +541,21 @@ function PlayerPanel({
   const isCurrent = state.current === index && state.phase !== 'gameover';
   const total = tokenTotal(p.tokens);
   return (
-    <div className={`player-panel${isCurrent ? ' current' : ''}`} style={{ ['--pc' as string]: PLAYER_COLORS[index] }} data-fx={`player-${index}`}>
+    <div className={`player-panel ${variant}${isCurrent ? ' current' : ''}`} style={{ ['--pc' as string]: PLAYER_COLORS[index] }} data-fx={`player-${index}`}>
       <div className="player-head">
         <span className="player-name">
           {isCurrent && <span className="turn-arrow">▶ </span>}
-          {p.name}
+          {variant === 'self' ? (
+            <>
+              You <small className="self-name">{p.name}</small>
+            </>
+          ) : (
+            p.name
+          )}
           {index === state.startPlayer && <span className="first-badge" title="Starting player">1st</span>}
         </span>
         <span className="controller">
-          {seat && isViewer && state.phase !== 'gameover' ? 'You' : CONTROLLER_LABEL[p.controller]}
+          {variant === 'self' ? (isCurrent ? 'Your turn' : 'Waiting') : CONTROLLER_LABEL[p.controller]}
           {offline && <span className="offline-badge"> · offline</span>}
         </span>
         <span className="player-points" title="Prestige">
@@ -591,7 +626,7 @@ function PlayerPanel({
   );
 }
 
-function ActionLog({ state }: { state: GameState }) {
+function ActionLog({ state, myName = null }: { state: GameState; myName?: string | null }) {
   const entries = state.log.slice(-80).reverse();
   return (
     <div className="log">
@@ -600,7 +635,7 @@ function ActionLog({ state }: { state: GameState }) {
         {entries.map((e, i) => (
           <li key={state.log.length - i}>
             <span className="dot" style={{ background: PLAYER_COLORS[e.player] }} />
-            {e.text}
+            {personalizeLog(e.text, myName)}
           </li>
         ))}
       </ol>
@@ -703,11 +738,24 @@ function GameOver({ state, onNewGame, online }: { state: GameState; onNewGame: (
     [state],
   );
   const winners = state.winners.map((i) => state.players[i].name);
+  const you = online?.you ?? null;
+  const score = (i: number): [number, number] => [prestige(state.players[i]), state.players[i].cards.length];
+  const others = state.winners.filter((i) => i !== you).map((i) => state.players[i].name);
+  const headline =
+    you === null
+      ? winners.length > 1
+        ? `Shared victory: ${winners.join(' & ')}`
+        : `${winners[0]} wins!`
+      : state.winners.includes(you)
+        ? others.length
+          ? `You share the victory with ${others.join(' & ')}!`
+          : 'You win!'
+        : `${winners.join(' & ')} ${winners.length > 1 ? 'share the win' : 'wins'} — you placed ${ordinal(placeOf(state, you, score))}`;
   const [hidden, setHidden] = useState(false);
   if (hidden)
     return (
       <div className="confirm-bar">
-        <span>Game over — {winners.join(' & ')} {winners.length > 1 ? 'share the victory' : 'wins'}.</span>
+        <span>Game over — {headline}</span>
         <button onClick={() => setHidden(false)}>Show results</button>
         {nextButtons}
       </div>
@@ -715,7 +763,7 @@ function GameOver({ state, onNewGame, online }: { state: GameState; onNewGame: (
   return (
     <div className="modal-backdrop">
       <div className="modal results">
-        <h2>{winners.length > 1 ? `Shared victory: ${winners.join(' & ')}` : `${winners[0]} wins!`}</h2>
+        <h2>{headline}</h2>
         <p className="muted">
           After {state.round} round{state.round === 1 ? '' : 's'}. Ties are broken by fewest purchased cards.
         </p>
@@ -735,6 +783,7 @@ function GameOver({ state, onNewGame, online }: { state: GameState; onNewGame: (
                 <td>{rank + 1}</td>
                 <td>
                   <span className="dot" style={{ background: PLAYER_COLORS[i] }} /> {p.name}
+                  {i === you && <b className="you-tag"> you</b>}
                   <span className="muted"> · {CONTROLLER_LABEL[p.controller]}</span>
                 </td>
                 <td>{pts}</td>

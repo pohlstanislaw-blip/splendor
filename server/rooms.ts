@@ -181,6 +181,9 @@ export class RoomManager {
       aiTimer: null,
       lastActive: this.now(),
     };
+    room.seats.forEach((seat, i) => {
+      if (seat.name) seat.name = uniqueName(room, seat.name, i);
+    });
     this.rooms.set(code, room);
     this.attach(c, room);
   }
@@ -196,7 +199,8 @@ export class RoomManager {
     if (!open) throw new RoomError('That room is full.');
     this.leave(c, true);
     open.token = c.token;
-    open.name = cleanName(name, `Player ${room.seats.indexOf(open) + 1}`);
+    const idx = room.seats.indexOf(open);
+    open.name = uniqueName(room, cleanName(name, `Player ${idx + 1}`), idx);
     this.attach(c, room);
   }
 
@@ -260,11 +264,11 @@ export class RoomManager {
       throw new RoomError('That player is still connected.');
     seat.kind = 'medium';
     seat.token = null;
-    seat.name = BOT_NAMES.medium;
+    seat.name = uniqueName(room, BOT_NAMES.medium, i);
     if (room.session) {
       for (const s of [room.session.state, room.session.turnStart]) {
         s.players[i].controller = 'medium';
-        s.players[i].name = BOT_NAMES.medium;
+        s.players[i].name = seat.name;
       }
     }
     this.broadcast(room);
@@ -401,6 +405,16 @@ export class RoomManager {
 }
 
 class RoomError extends Error {}
+
+/** Names are unique within a room, so a player can always tell "you" from someone else. */
+function uniqueName(room: Room, base: string, seatIndex: number): string {
+  const taken = new Set(room.seats.filter((_, i) => i !== seatIndex).map((s) => s.name.toLowerCase()));
+  if (!taken.has(base.toLowerCase())) return base;
+  for (let n = 2; ; n++) {
+    const candidate = `${base.slice(0, MAX_NAME_LENGTH - String(n).length - 1)} ${n}`;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+  }
+}
 
 function cleanName(name: unknown, fallback: string): string {
   const s = typeof name === 'string' ? name.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, MAX_NAME_LENGTH) : '';
