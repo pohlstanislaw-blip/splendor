@@ -24,7 +24,7 @@ import {
   type Tier,
   type Token,
 } from './engine';
-import { CardBack, CardView } from './components/CardView';
+import { BoughtStacks, CardBack, CardView } from './components/CardView';
 import { ArtDefs } from './components/CardArt';
 import { Fx } from './components/Fx';
 import { CostPip, GemDefs, GemIcon, TokenChip } from './components/Gem';
@@ -576,16 +576,9 @@ function PlayerPanel({
       </div>
       <div className="player-row" title="Permanent bonuses from purchased cards: each one lowers that gem's cost by 1">
         <span className="row-label">
-          Card bonuses · {p.cards.length} card{p.cards.length === 1 ? '' : 's'}
+          Cards bought · {p.cards.length} · bonuses per colour
         </span>
-        <div className="bonus-row">
-          {GEMS.map((g) => (
-            <span key={g} className={`bonus-badge${b[g] ? '' : ' zero'}`} aria-label={`${b[g]} ${GEM_LABEL[g]} bonus`}>
-              <GemIcon gem={g} size={18} />
-              <b>{b[g]}</b>
-            </span>
-          ))}
-        </div>
+        <BoughtStacks cardIds={p.cards} getCard={getCard} />
       </div>
       {p.patrons.length > 0 && (
         <div className="player-row">

@@ -557,3 +557,28 @@ input, select {
   100% { opacity: 0; transform: translate(-50%, -6px); }
 }
 @media (prefers-reduced-motion: reduce) { .turn-banner { animation: none; } }
+
+/* ---------- bought cards: stacked per colour, top bands visible ---------- */
+.bought-stacks { --w: 52px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; align-items: start; }
+.player-panel.self .bought-stacks { --w: 56px; }
+.player-panel.opponent .bought-stacks { --w: 44px; gap: 4px; }
+.bought-col { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; }
+.bought-head {
+  display: flex; align-items: center; justify-content: center; gap: 3px; width: 100%;
+  font-family: var(--font-head); font-size: 14px; color: var(--ink);
+  background: linear-gradient(180deg, var(--parchment), var(--parchment-2)); border: 1px solid var(--brass-lo); border-radius: 4px; padding: 1px 0;
+}
+.bought-col.empty .bought-head { opacity: 0.45; }
+.bought-stack { display: flex; flex-direction: column; align-items: center; width: var(--w); max-width: 100%; }
+.bought-slot { width: 100%; aspect-ratio: 5 / 7; border: 1.5px dashed #c9a05244; border-radius: 6px; }
+.card.face.bought {
+  width: 100%; flex: none; animation: none;
+  box-shadow: 0 0 0 1px #0009, 0 0 0 1.5px #f4ead1, 0 -2px 5px #0008;
+  transition: transform 0.15s;
+}
+/* each later card overlaps the one above, leaving its band (about 21% of the height) visible */
+.card.face.bought + .card.face.bought { margin-top: calc(var(--w) * (0.3 - 1.4)); }
+.card.face.bought:hover { transform: translateY(-3px) scale(1.04); z-index: 2; }
+.card.face.bought .face-band { height: 21.5%; padding: 0 6% 0 5%; }
+.card.face.bought .face-bonus svg { width: 22cqw; height: 22cqw; }
+@media (prefers-reduced-motion: reduce) { .card.face.bought:hover { transform: none; } }

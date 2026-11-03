@@ -158,3 +158,50 @@ export function CardBack({ tier, label, compact, fxId }: { tier: Tier; label?: s
     </div>
   );
 }
+
+/**
+ * A player's purchased cards: one column per gem colour, each a cascade of cards stacked on top
+ * of each other and offset so every card's top band (points + gem) stays visible.
+ */
+export function BoughtStacks({ cardIds, getCard }: { cardIds: string[]; getCard: (id: string) => Card }) {
+  const cards = cardIds.map(getCard);
+  return (
+    <div className="bought-stacks">
+      {GEMS.map((g) => {
+        const stack = cards.filter((c) => c.bonus === g);
+        const points = stack.reduce((s, c) => s + c.points, 0);
+        return (
+          <div
+            key={g}
+            className={`bought-col${stack.length ? '' : ' empty'}`}
+            aria-label={`${stack.length} ${GEM_LABEL[g]} card${stack.length === 1 ? '' : 's'}, ${points} prestige`}
+          >
+            <div className="bought-head" title={`${stack.length} ${GEM_LABEL[g]} bonus${stack.length === 1 ? '' : 'es'} · ${points} prestige from these cards`}>
+              <GemIcon gem={g} size={16} />
+              <b>{stack.length}</b>
+            </div>
+            <div className="bought-stack">
+              {stack.length === 0 && <div className="bought-slot" aria-hidden />}
+              {stack.map((c) => (
+                <div
+                  key={c.id}
+                  className={`card face bought tier-${c.tier}`}
+                  style={{ ['--bonus' as string]: GEM_COLORS[c.bonus].fill, ['--bonus-glow' as string]: GEM_COLORS[c.bonus].glow }}
+                  title={`${c.name} · ${c.points} prestige · ${TIER_NAMES[c.tier]}`}
+                >
+                  <CardArt card={c} />
+                  <div className="face-band">
+                    <span className="face-points">{c.points || ''}</span>
+                    <span className="face-bonus">
+                      <GemIcon gem={c.bonus} size={14} />
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
