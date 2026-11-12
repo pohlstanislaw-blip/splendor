@@ -199,7 +199,7 @@ function Board({ state, dispatch, undo, canUndo, error, clearError, onNewGame, o
   }, [online, seated, state.current, state.phase]);
 
   // --- view: 3D table or classic ---
-  const { settings, update, view, reducedMotion, tablePossible } = useSettings();
+  const { settings, update, view, reducedMotion, tablePossible, fallback, setFallback } = useSettings();
   const [notice, setNotice] = useState<string | null>(null);
   const [selected, setSelected] = useState<TableSelection | null>(null);
   const [logOpen, setLogOpen] = useState(false);
@@ -208,8 +208,9 @@ function Board({ state, dispatch, undo, canUndo, error, clearError, onNewGame, o
   const lastHuman = useRef(Math.max(0, state.players.findIndex((p) => p.controller === 'human')));
   if (!online && isHuman && !handoff) lastHuman.current = state.current;
   const tableSeat = online ? (online.you ?? 0) : lastHuman.current;
+  /** switch to Classic for this visit only, and say why */
   const fallBack = (why: string) => {
-    update({ view: 'classic' });
+    setFallback(why);
     setNotice(why);
   };
   const tableMode = view === 'table';
@@ -253,8 +254,22 @@ function Board({ state, dispatch, undo, canUndo, error, clearError, onNewGame, o
         </div>
       )}
       {notice && (
-        <div className="error-toast notice" role="status" onClick={() => setNotice(null)}>
-          {notice}
+        <div className="error-toast notice" role="status">
+          <span>{notice}</span>
+          {fallback && tablePossible && (
+            <button
+              className="small primary"
+              onClick={() => {
+                update({ view: 'table' });
+                setNotice(null);
+              }}
+            >
+              Keep the 3D table
+            </button>
+          )}
+          <button className="small" onClick={() => setNotice(null)} aria-label="Dismiss">
+            ✕
+          </button>
         </div>
       )}
 
@@ -275,7 +290,11 @@ function Board({ state, dispatch, undo, canUndo, error, clearError, onNewGame, o
               seatColors={PLAYER_COLORS}
               reducedMotion={reducedMotion}
               soundOn={settings.sound}
-              onSlow={settings.view === 'auto' ? () => fallBack('The 3D table was running slowly, so the classic view is on. You can switch back under Settings.') : undefined}
+              onSlow={
+                settings.view === 'auto'
+                  ? (fps) => fallBack(`The 3D table was running slowly here (about ${Math.round(fps)} frames per second), so the classic view is on for this visit.`)
+                  : undefined
+              }
               onError={() => fallBack('The 3D table could not start on this device, so the classic view is on.')}
             />
           </Suspense>

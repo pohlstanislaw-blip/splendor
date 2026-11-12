@@ -48,8 +48,8 @@ export interface TableViewProps {
   seatColors: string[];
   reducedMotion: boolean;
   soundOn: boolean;
-  /** called once if the scene runs too slowly to be pleasant */
-  onSlow?: () => void;
+  /** called once, with the measured frame rate, if the scene runs too slowly to be pleasant */
+  onSlow?: (fps: number) => void;
   /** called if WebGL fails */
   onError?: () => void;
 }
@@ -512,17 +512,30 @@ function CameraRig({ playerCount, reduced }: { playerCount: number; reduced: boo
   return null;
 }
 
-function PerfWatch({ onSlow }: { onSlow?: () => void }) {
-  const acc = useRef({ t: 0, frames: 0, done: false });
+/**
+ * Reports the table as too slow only after a fair measurement:
+ * - waits until 3 s of real rendering have passed (shaders compiled, card pictures decoded);
+ * - then measures 5 s of frames;
+ * - ignores gaps longer than 0.25 s (a hidden tab, a stall while textures load), so time spent
+ *   in another tab never counts as "slow".
+ */
+export const SLOW_FPS = 15;
+function PerfWatch({ onSlow }: { onSlow?: (fps: number) => void }) {
+  const acc = useRef({ warm: 0, t: 0, frames: 0, done: false });
   useFrame((_, dt) => {
     const a = acc.current;
     if (a.done || !onSlow) return;
+    if (dt > 0.25 || document.hidden) return;
+    if (a.warm < 3) {
+      a.warm += dt;
+      return;
+    }
     a.t += dt;
-    if (a.t < 1.5) return; // warm-up: shaders and textures
     a.frames++;
-    if (a.t > 6.5) {
+    if (a.t >= 5) {
       a.done = true;
-      if (a.frames / 5 < 20) onSlow();
+      const fps = a.frames / a.t;
+      if (fps < SLOW_FPS) onSlow(fps);
     }
   });
   return null;

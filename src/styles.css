@@ -654,3 +654,4 @@ input, select {
   .inspector .card.face { width: 160px; }
   .hud-self .plate { min-width: 150px; }
 }
+.error-toast.notice { display: flex; align-items: center; gap: 10px; cursor: default; max-width: min(92vw, 760px); }
