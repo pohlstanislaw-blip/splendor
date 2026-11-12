@@ -81,7 +81,7 @@ input, select {
 
 /* ---------- lantern vignette ---------- */
 .lantern-vignette {
-  position: fixed; inset: 0; pointer-events: none; z-index: 40;
+  position: fixed; inset: 0; pointer-events: none; z-index: 40; will-change: opacity; contain: strict;
   background: radial-gradient(ellipse 85% 80% at 50% 42%, transparent 62%, #0a060488 100%),
               radial-gradient(ellipse 40% 30% at 50% 0%, #ffb34714, transparent 70%);
   animation: flicker 5.5s infinite steps(1, end);
@@ -477,8 +477,7 @@ input, select {
 .face-band {
   position: absolute; left: 0; right: 0; top: 0; height: 21%;
   display: flex; align-items: center; justify-content: space-between; padding: 0 7% 0 6%;
-  background: linear-gradient(180deg, #ffffffb8, #ffffff80 70%, #ffffff55);
-  backdrop-filter: blur(1.5px);
+  background: linear-gradient(180deg, #ffffffc4, #ffffff8c 70%, #ffffff60);
   box-shadow: 0 1px 0 #ffffff66, 0 3px 6px #0004;
 }
 .face-points {

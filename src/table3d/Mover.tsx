@@ -2,6 +2,7 @@
 // computed from state changes, the object tweens there. A change of `zone` (e.g. market → a
 // player's stack) plays the pick-up sequence: rise, turn to the viewer, hold, then fly.
 import { useFrame, useThree } from '@react-three/fiber';
+import { useKick } from './kick';
 import { createContext, useContext, useLayoutEffect, useRef, type ReactNode } from 'react';
 import * as THREE from 'three';
 import type { Pose } from './layout';
@@ -65,12 +66,14 @@ export function Mover({
   const glow = useRef<THREE.Mesh>(null);
   const motion = useContext(MotionContext);
   const camera = useThree((s) => s.camera);
+  const kick = useKick();
   const anim = useRef<{ segments: Segment[]; i: number; t: number; arrive: boolean } | null>(null);
   const last = useRef<{ key: string; zone: string; snapKey: string } | null>(null);
   const glowT = useRef(0);
   const key = poseKey(pose);
 
   useLayoutEffect(() => {
+    kick();
     const g = group.current!;
     const target = toQ(pose);
     const set = (q: Q) => {
@@ -145,15 +148,18 @@ export function Mover({
     if (!g) return;
     if (glow.current) {
       if (glowT.current > 0) {
-        glowT.current = Math.max(0, glowT.current - dt / 0.9);
+        kick(false);
+        glowT.current = Math.max(0, glowT.current - Math.min(dt, 0.12) / 0.9);
         glow.current.visible = true;
         (glow.current.material as THREE.MeshBasicMaterial).opacity = glowT.current * 0.85;
       } else if (glow.current.visible) glow.current.visible = false;
     }
     const a = anim.current;
     if (!a) return;
+    kick();
     const seg = a.segments[a.i];
-    a.t += Math.min(dt, 0.05);
+    // real time, so a slow computer shows fewer frames but the move still takes the same time
+    a.t += Math.min(dt, 0.12);
     const local = a.t - seg.wait;
     if (local < 0) return;
     const u = Math.min(1, local / seg.dur);

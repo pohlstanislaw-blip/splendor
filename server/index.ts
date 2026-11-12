@@ -2,10 +2,11 @@
 //
 //   npm run build && npm start          # production (PORT env var, default 8787)
 //   npm run dev:server                  # development, next to `npm run dev`
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { extname, join, normalize, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { brotliCompressSync, constants as zlibConstants, gzipSync } from 'node:zlib';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { RoomManager } from './rooms';
 
@@ -88,6 +89,23 @@ export function startServer(port = PORT, opts: { quiet?: boolean; aiDelayMs?: nu
   };
 }
 
+const COMPRESSIBLE = new Set(['.html', '.js', '.css', '.json', '.svg']);
+/** Compressed copies of text files, made once per file version and kept in memory. */
+const compressed = new Map<string, { mtime: number; br: Buffer; gz: Buffer }>();
+function compressedCopy(file: string) {
+  const mtime = statSync(file).mtimeMs;
+  const hit = compressed.get(file);
+  if (hit && hit.mtime === mtime) return hit;
+  const raw = readFileSync(file);
+  const entry = {
+    mtime,
+    br: brotliCompressSync(raw, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 10 } }),
+    gz: gzipSync(raw, { level: 9 }),
+  };
+  compressed.set(file, entry);
+  return entry;
+}
+
 function serveStatic(req: IncomingMessage, res: ServerResponse, rooms: RoomManager) {
   const url = new URL(req.url ?? '/', 'http://localhost');
   if (url.pathname === '/healthz') {
@@ -109,11 +127,21 @@ function serveStatic(req: IncomingMessage, res: ServerResponse, rooms: RoomManag
   }
   const type = MIME[extname(file)] ?? 'application/octet-stream';
   const immutable = file.includes(`${DIST}/assets/`);
-  res.writeHead(200, {
+  const headers: Record<string, string> = {
     'content-type': type,
     'cache-control': immutable ? 'public, max-age=31536000, immutable' : 'no-cache',
     'x-content-type-options': 'nosniff',
-  });
+    vary: 'accept-encoding',
+  };
+  const accept = String(req.headers['accept-encoding'] ?? '');
+  const encoding = !COMPRESSIBLE.has(extname(file)) ? null : /\bbr\b/.test(accept) ? 'br' : /\bgzip\b/.test(accept) ? 'gzip' : null;
+  if (encoding) {
+    const copy = compressedCopy(file);
+    const body = encoding === 'br' ? copy.br : copy.gz;
+    res.writeHead(200, { ...headers, 'content-encoding': encoding, 'content-length': String(body.length) });
+    return res.end(req.method === 'HEAD' ? undefined : body);
+  }
+  res.writeHead(200, headers);
   if (req.method === 'HEAD') return res.end();
   createReadStream(file).pipe(res);
 }

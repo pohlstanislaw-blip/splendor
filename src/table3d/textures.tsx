@@ -10,6 +10,15 @@ import { Portrait } from '../components/Portrait';
 import { GEMS, type Card, type Gem, type Patron, type Tier, type Token } from '../engine';
 
 const cache = new Map<string, THREE.CanvasTexture>();
+
+/** The scene draws on demand, so it must hear when a picture finishes decoding. */
+const loadedListeners = new Set<() => void>();
+export function onTextureLoaded(fn: () => void) {
+  loadedListeners.add(fn);
+  return () => {
+    loadedListeners.delete(fn);
+  };
+}
 const SERIF = "Georgia, 'Times New Roman', serif"; // web fonts are not available inside SVG images
 
 function svgTexture(key: string, w: number, h: number, placeholder: string, build: () => ReactElement): THREE.CanvasTexture {
@@ -30,6 +39,7 @@ function svgTexture(key: string, w: number, h: number, placeholder: string, buil
     ctx.clearRect(0, 0, w, h);
     ctx.drawImage(img, 0, 0, w, h);
     tex.needsUpdate = true;
+    for (const fn of loadedListeners) fn();
   };
   img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(renderToStaticMarkup(build()))}`;
   return tex;
@@ -252,4 +262,22 @@ export function woodTexture(): THREE.CanvasTexture {
   wood.wrapS = wood.wrapT = THREE.RepeatWrapping;
   wood.anisotropy = 8;
   return wood;
+}
+
+let glow: THREE.CanvasTexture | null = null;
+/** A soft warm pool of light, painted on the table under each candle instead of a real light. */
+export function glowTexture(): THREE.CanvasTexture {
+  if (glow) return glow;
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d')!;
+  const grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+  grad.addColorStop(0, 'rgba(255,190,110,0.85)');
+  grad.addColorStop(0.35, 'rgba(255,150,70,0.35)');
+  grad.addColorStop(1, 'rgba(255,120,40,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 256, 256);
+  glow = new THREE.CanvasTexture(c);
+  glow.colorSpace = THREE.SRGBColorSpace;
+  return glow;
 }
