@@ -28,6 +28,7 @@ The game has two looks, switched under **Settings** in the top bar:
 - **Table (3D):** you sit at a candlelit table. The market, decks, token stacks and patrons lie in front of you, your cards are at your edge, and the other players sit around the table in turn order with their own cards and tokens.
   - Click a card, deck or patron to open the **inspector** on the right, with the full card and its Buy / Reserve buttons.
   - Click token stacks to pick gems (click one stack twice to take 2), then **Take**.
+  - **Drag** (mouse or finger) to look around the table; the view stays where you leave it. **Double-click** empty table or press **R** to look straight ahead again. Moving the mouse without dragging never moves the view.
   - Buying or reserving plays a pick-up animation; tokens fly between the supply and players.
   - Name plates show each player's exact prestige, tokens and card bonuses.
 - **Classic (2D):** the flat board with player panels.

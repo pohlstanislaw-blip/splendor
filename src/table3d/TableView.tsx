@@ -29,6 +29,7 @@ import {
   type SeatFrame,
 } from './layout';
 import { MotionContext, Mover, type Motion, type Via } from './Mover';
+import { DRAG_THRESHOLD, justDragged, markDragEnded } from './drag';
 import { useKick } from './kick';
 import { cardBackTexture, cardFaceTexture, chipTexture, glowTexture, onTextureLoaded, patronTexture, woodTexture } from './textures';
 import type { TableSelection } from './types';
@@ -163,7 +164,7 @@ const CardMesh = memo(function CardMesh({
           setCursor(false);
         }}
         onClick={(e) => {
-          if (!item.select) return;
+          if (!item.select || justDragged()) return;
           e.stopPropagation();
           onSelect(item.select);
         }}
@@ -203,6 +204,7 @@ function DeckPile({ tier, count, selected, onSelect }: { tier: Tier; count: numb
         setCursor(false);
       }}
       onClick={(e) => {
+        if (justDragged()) return;
         e.stopPropagation();
         onSelect({ kind: 'deck', tier });
       }}
@@ -294,7 +296,7 @@ function SupplyStacks({ state, interactive, picked, onToggleGem }: { state: Game
               }}
               onPointerOut={() => setCursor(false)}
               onClick={(e) => {
-                if (!can) return;
+                if (!can || justDragged()) return;
                 e.stopPropagation();
                 onToggleGem(token as Gem);
               }}
@@ -335,6 +337,7 @@ const PatronTile3D = memo(function PatronTile3D({ id, pose, zone, via, onSelect 
         }}
         onPointerOut={() => setCursor(false)}
         onClick={(e) => {
+          if (justDragged()) return;
           e.stopPropagation();
           onSelect({ kind: 'patron', patronId: id });
         }}
@@ -466,35 +469,94 @@ function Figure({ frame, color, active, variant }: { frame: SeatFrame; color: st
 }
 
 
+/** How far you can look around (offsets of the look-at point and camera). */
+const LOOK = { x: 1.8, z: 1.1, camX: 0.7 };
+
+/**
+ * The camera sits in your seat. Drag (mouse or finger) to look around a little; the view stays
+ * where you leave it. Double-click empty table or press R to look straight ahead again.
+ * Plain mouse movement never moves the camera, so aiming at a card doesn't shift the table.
+ */
 function CameraRig({ playerCount, reduced }: { playerCount: number; reduced: boolean }) {
-  const { camera, size, invalidate } = useThree();
+  const { camera, size, invalidate, gl } = useThree();
   const look = useRef(new THREE.Vector3());
+  /** wanted look offset, -1..1 on each axis */
+  const aim = useRef({ x: 0, y: 0 });
   const base = useMemo(() => cameraFor(playerCount, size.width / size.height), [playerCount, size.width, size.height]);
   useEffect(() => {
     camera.position.set(...base.pos);
     (camera as THREE.PerspectiveCamera).fov = base.fov;
     camera.updateProjectionMatrix();
-    look.current.set(...base.target);
+    look.current.set(base.target[0] + aim.current.x * LOOK.x, base.target[1], base.target[2] - aim.current.y * LOOK.z);
+    camera.position.x = aim.current.x * LOOK.camX;
     camera.lookAt(look.current);
     invalidate();
   }, [camera, base, invalidate]);
+
   useEffect(() => {
-    if (reduced) return;
-    const on = () => invalidate();
-    window.addEventListener('pointermove', on);
-    return () => window.removeEventListener('pointermove', on);
-  }, [reduced, invalidate]);
-  useFrame(({ pointer }, dt) => {
-    // a little head movement: lean toward the pointer, never far enough to lose the table
-    const tx = base.target[0] + (reduced ? 0 : pointer.x * 0.9);
-    const tz = base.target[2] + (reduced ? 0 : -pointer.y * 0.55);
-    const k = 1 - Math.exp(-dt * 4);
+    const el = gl.domElement;
+    let press: { id: number; x: number; y: number; ax: number; ay: number; dragging: boolean } | null = null;
+    const recenter = () => {
+      aim.current = { x: 0, y: 0 };
+      invalidate();
+    };
+    const down = (e: PointerEvent) => {
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
+      press = { id: e.pointerId, x: e.clientX, y: e.clientY, ax: aim.current.x, ay: aim.current.y, dragging: false };
+    };
+    const move = (e: PointerEvent) => {
+      if (!press || e.pointerId !== press.id) return;
+      const dx = e.clientX - press.x;
+      const dy = e.clientY - press.y;
+      if (!press.dragging) {
+        if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+        press.dragging = true;
+        el.setPointerCapture?.(e.pointerId);
+        document.body.style.cursor = 'grabbing';
+      }
+      // drag the table: moving the pointer right looks left, like pulling the view
+      const clamp = (v: number) => Math.max(-1, Math.min(1, v));
+      aim.current = { x: clamp(press.ax - (dx / el.clientWidth) * 2.2), y: clamp(press.ay + (dy / el.clientHeight) * 2.2) };
+      invalidate();
+    };
+    const up = (e: PointerEvent) => {
+      if (!press || e.pointerId !== press.id) return;
+      if (press.dragging) {
+        markDragEnded();
+        document.body.style.cursor = '';
+      }
+      press = null;
+    };
+    const key = (e: KeyboardEvent) => {
+      if ((e.key === 'r' || e.key === 'R') && !(e.target instanceof HTMLInputElement) && !e.ctrlKey && !e.metaKey) recenter();
+    };
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+    el.addEventListener('dblclick', recenter);
+    window.addEventListener('keydown', key);
+    return () => {
+      el.removeEventListener('pointerdown', down);
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+      el.removeEventListener('dblclick', recenter);
+      window.removeEventListener('keydown', key);
+    };
+  }, [gl, invalidate]);
+
+  useFrame((_, dt) => {
+    const tx = base.target[0] + aim.current.x * LOOK.x;
+    const tz = base.target[2] - aim.current.y * LOOK.z;
+    const camX = aim.current.x * LOOK.camX;
+    // with reduced motion the view jumps straight to where you dragged it
+    const k = reduced ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 10);
     look.current.x += (tx - look.current.x) * k;
     look.current.z += (tz - look.current.z) * k;
-    const camX = reduced ? 0 : pointer.x * 0.35;
     camera.position.x += (camX - camera.position.x) * k;
     camera.lookAt(look.current);
-    // keep drawing until the lean has settled
+    // keep drawing until the view has settled
     if (Math.abs(tx - look.current.x) + Math.abs(tz - look.current.z) + Math.abs(camX - camera.position.x) > 0.002) invalidate();
   });
   return null;
@@ -683,7 +745,9 @@ export default function TableView(props: TableViewProps) {
           gl.shadowMap.autoUpdate = false;
           gl.shadowMap.needsUpdate = true;
         }}
-        onPointerMissed={() => props.onSelect(null)}
+        onPointerMissed={() => {
+          if (!justDragged()) props.onSelect(null);
+        }}
       >
         <Scene {...props} />
       </Canvas>

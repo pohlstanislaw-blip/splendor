@@ -13,7 +13,9 @@ Turn Facets into a game you play as if you were sitting at a real table with the
 - **Pick-up sequence.** Your own cards come to the camera and hold; opponents' cards lift above the table, tilt toward you, then fly to their seat.
 - **Animation model.** Every object's position is computed from game state (`layout.ts`); `Mover.tsx` tweens to it. Chips get stable identities (`chips.ts`) so the right number fly between piles.
 - **Libraries.** three 0.169, @react-three/fiber 8.17 and drei 9.114 (only its HTML overlay). No drei text, because it downloads fonts at runtime.
-- **Not built:** drag-to-look (the camera leans with the pointer instead), and a per-card enlarged preview on hover (the inspector covers it).
+- **Camera:** drag (mouse or touch) to look around; double-click or R to recentre. Plain pointer movement never moves the camera: it kept the scene redrawing and shifted targets while aiming.
+- **Performance:** the scene renders on demand (only while something moves), with one shadow-casting lamp, painted candle glows and shadows updated only on movement.
+- **Not built:** a per-card enlarged preview on hover (the inspector covers it).
 
 ## Context: read first
 

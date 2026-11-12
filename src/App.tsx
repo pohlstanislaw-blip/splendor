@@ -564,7 +564,7 @@ function PickBar({
   return (
     <div className="confirm-bar pick-bar">
       <span className="picked">
-        {picked.length ? picked.map((g, i) => <GemIcon key={i} gem={g} size={22} />) : <span className="muted">Your turn: click gem stacks, a card or a deck</span>}
+        {picked.length ? picked.map((g, i) => <GemIcon key={i} gem={g} size={22} />) : <span className="muted">Your turn: click gem stacks, a card or a deck · drag to look around</span>}
       </span>
       {picked.length > 0 && (
         <>
