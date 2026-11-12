@@ -2,6 +2,19 @@
 
 Turn Facets into a game you play as if you were sitting at a real table with the other players. Inspiration is the moody, first-person tabletop feel of games such as *Inscryption*: a dim room, candlelight, a worn wooden table, cards you pick up and lay down by hand. Facets must keep its own identity. Use **nothing** from Inscryption or any other commercial game: no names, characters, art, models, sounds, fonts, UI or text.
 
+## Status and refinements
+
+**Built** on branch `tabletop-3d` (code in `src/table3d/`). These points refine the original brief and record what was decided while building:
+
+- **Inspector, not a floating panel.** Clicking a card, deck or patron on the table opens a docked inspector on the right. It shows the crisp 2D card with its Buy / Reserve buttons and the engine's reason when an action is blocked. This replaces "a small panel next to the card", which covered the table.
+- **Exact numbers on name plates.** 3D chips and stacks give the feel; each seat's plate gives exact prestige, tokens and bonuses. Opponents' plates stand at their table edge like place cards; yours is docked bottom-left.
+- **Settings menu** in the top bar: View (Table 3D / Classic 2D), Animations (On / Reduced), Sound (On / Off, off by default). Saved per browser.
+- **Default view.** Table on screens at least 900 px wide with WebGL, otherwise Classic. If the table runs below about 20 fps in its first seconds, or the 3D code fails to load, the game switches to Classic and says so. An explicit "Table" choice is never overridden for speed.
+- **Pick-up sequence.** Your own cards come to the camera and hold; opponents' cards lift above the table, tilt toward you, then fly to their seat.
+- **Animation model.** Every object's position is computed from game state (`layout.ts`); `Mover.tsx` tweens to it. Chips get stable identities (`chips.ts`) so the right number fly between piles.
+- **Libraries.** three 0.169, @react-three/fiber 8.17 and drei 9.114 (only its HTML overlay). No drei text, because it downloads fonts at runtime.
+- **Not built:** drag-to-look (the camera leans with the pointer instead), and a per-card enlarged preview on hover (the inspector covers it).
+
 ## Context: read first
 
 - **Repo:** `pohlstanislaw-blip/splendor`.
@@ -52,7 +65,7 @@ Turn Facets into a game you play as if you were sitting at a real table with the
 ### 3. Controls and readability
 - Every engine action stays reachable:
   - **Take gems:** click the supply chips, then confirm.
-  - **Buy or reserve:** click a card to see its actions in a small panel next to it.
+  - **Buy or reserve:** click a card to see it and its actions in the docked inspector.
   - **Reserve top:** click a deck.
   - **Discard, patron choice, confirm and undo:** keep the existing dialogs.
 - Disabled actions still explain why. Reuse the engine's `validate()` reasons in tooltips or the action panel.

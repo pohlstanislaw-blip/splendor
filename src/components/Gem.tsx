@@ -24,31 +24,41 @@ export const GEM_CUT: Record<Token, string> = {
 const TOKENS_ALL: Token[] = ['garnet', 'lapis', 'jade', 'obsidian', 'moonstone', 'gold'];
 
 /** Shared gradients — render once near the root. */
+/** The gradients the gem shapes reference (children of a <defs>). */
+export function GemDefsContent() {
+  return (
+    <>
+      {TOKENS_ALL.map((g) => {
+        const c = GEM_COLORS[g];
+        return (
+          <g key={g}>
+            <linearGradient id={`gem-lin-${g}`} x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor={c.light} />
+              <stop offset="0.45" stopColor={c.fill} />
+              <stop offset="1" stopColor={c.dark} />
+            </linearGradient>
+            <radialGradient id={`gem-rad-${g}`} cx="0.38" cy="0.32" r="0.75">
+              <stop offset="0" stopColor={c.light} />
+              <stop offset="0.5" stopColor={c.fill} />
+              <stop offset="1" stopColor={c.dark} />
+            </radialGradient>
+          </g>
+        );
+      })}
+      <radialGradient id="moon-sheen" cx="0.62" cy="0.38" r="0.6">
+        <stop offset="0" stopColor="#9cc6ff" stopOpacity="0.85" />
+        <stop offset="1" stopColor="#9cc6ff" stopOpacity="0" />
+      </radialGradient>
+    </>
+  );
+}
+
+/** Shared gradients — render once near the root. */
 export function GemDefs() {
   return (
     <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden focusable="false">
       <defs>
-        {TOKENS_ALL.map((g) => {
-          const c = GEM_COLORS[g];
-          return (
-            <g key={g}>
-              <linearGradient id={`gem-lin-${g}`} x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stopColor={c.light} />
-                <stop offset="0.45" stopColor={c.fill} />
-                <stop offset="1" stopColor={c.dark} />
-              </linearGradient>
-              <radialGradient id={`gem-rad-${g}`} cx="0.38" cy="0.32" r="0.75">
-                <stop offset="0" stopColor={c.light} />
-                <stop offset="0.5" stopColor={c.fill} />
-                <stop offset="1" stopColor={c.dark} />
-              </radialGradient>
-            </g>
-          );
-        })}
-        <radialGradient id="moon-sheen" cx="0.62" cy="0.38" r="0.6">
-          <stop offset="0" stopColor="#9cc6ff" stopOpacity="0.85" />
-          <stop offset="1" stopColor="#9cc6ff" stopOpacity="0" />
-        </radialGradient>
+        <GemDefsContent />
       </defs>
     </svg>
   );
@@ -57,7 +67,8 @@ export function GemDefs() {
 const W = (o: number) => ({ fill: '#fff', opacity: o });
 const B = (o: number) => ({ fill: '#000', opacity: o });
 
-function Shape({ gem }: { gem: Token }) {
+/** The gem drawing itself in a 24 × 24 box (no <svg> wrapper). */
+export function GemShape({ gem }: { gem: Token }) {
   const c = GEM_COLORS[gem];
   const edge = { stroke: c.dark, strokeWidth: 0.8, strokeLinejoin: 'round' as const };
   switch (gem) {
@@ -152,7 +163,7 @@ export function GemIcon({ gem, size = 20, title }: { gem: Token; size?: number; 
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" role="img" aria-label={title ?? `${GEM_LABEL[gem]} (${GEM_CUT[gem]})`} className={`gem-icon gem-${gem}`}>
       <title>{title ?? `${GEM_LABEL[gem]} (${GEM_CUT[gem]})`}</title>
-      <Shape gem={gem} />
+      <GemShape gem={gem} />
     </svg>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Component, Suspense, lazy, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   GEMS,
   GEM_LABEL,
@@ -33,6 +33,12 @@ import { useGame } from './useGame';
 import { HIDDEN_PREFIX, type SeatKind, type SeatView } from './online/protocol';
 import { inviteCodeFromUrl, inviteLink, savedName, useOnline, type OnlineApi } from './online/useOnline';
 import { ordinal, personalizeLog, placeOf, seatOrderFrom } from './online/perspective';
+import { PICK_HINT, pickAction, togglePick } from './picks';
+import { useSettings } from './settings';
+import type { TableSelection } from './table3d/types';
+
+// three.js and the 3D scene load only when the table view is used
+const TableView = lazy(() => import('./table3d/TableView'));
 
 const PLAYER_COLORS = ['#f0b429', '#4fd1c5', '#f687b3', '#9f7aea'];
 const CONTROLLER_LABEL: Record<Controller, string> = { human: 'Human', easy: 'AI · Easy', medium: 'AI · Medium' };
@@ -192,12 +198,28 @@ function Board({ state, dispatch, undo, canUndo, error, clearError, onNewGame, o
     };
   }, [online, seated, state.current, state.phase]);
 
+  // --- view: 3D table or classic ---
+  const { settings, update, view, reducedMotion, tablePossible } = useSettings();
+  const [notice, setNotice] = useState<string | null>(null);
+  const [selected, setSelected] = useState<TableSelection | null>(null);
+  const [logOpen, setLogOpen] = useState(false);
+  useEffect(() => setSelected(null), [state.log.length, state.turn, state.phase]);
+  // the camera sits in your seat online; in hot-seat it follows the human whose turn it is
+  const lastHuman = useRef(Math.max(0, state.players.findIndex((p) => p.controller === 'human')));
+  if (!online && isHuman && !handoff) lastHuman.current = state.current;
+  const tableSeat = online ? (online.you ?? 0) : lastHuman.current;
+  const fallBack = (why: string) => {
+    update({ view: 'classic' });
+    setNotice(why);
+  };
+  const tableMode = view === 'table';
+
   return (
-    <div className="app">
+    <div className={`app${tableMode ? ' table-mode' : ''}`}>
       <GemDefs />
       <ArtDefs />
       <div className="lantern-vignette" aria-hidden />
-      <Fx state={state} />
+      {!tableMode && <Fx state={state} />}
       <header className="topbar">
         <div className="brand">
           <GemIcon gem="garnet" size={26} />
@@ -205,6 +227,7 @@ function Board({ state, dispatch, undo, canUndo, error, clearError, onNewGame, o
         </div>
         <TurnIndicator state={state} you={online?.you ?? null} />
         <div className="topbar-actions">
+          <SettingsMenu settings={settings} update={update} view={view} reducedMotion={reducedMotion} tablePossible={tablePossible} />
           {online ? (
             <>
               <span className={`room-chip${online.status === 'open' ? '' : ' warn'}`} title={online.status === 'open' ? 'Connected' : 'Reconnecting to the server…'}>
@@ -229,7 +252,64 @@ function Board({ state, dispatch, undo, canUndo, error, clearError, onNewGame, o
           {error}
         </div>
       )}
+      {notice && (
+        <div className="error-toast notice" role="status" onClick={() => setNotice(null)}>
+          {notice}
+        </div>
+      )}
 
+      {tableMode && (
+        <main className="table-wrap">
+          <Catch onError={() => fallBack('The 3D table could not be loaded here, so the classic view is on.')}>
+          <Suspense fallback={<div className="table-loading">Setting the table…</div>}>
+            <TableView
+              state={state}
+              viewer={tableSeat}
+              canSeeHidden={(seat) => viewer === 'all' || viewer === seat}
+              interactive={interactive}
+              picked={picked}
+              onToggleGem={(g) => setPicked(togglePick(picked, g))}
+              selected={selected}
+              onSelect={setSelected}
+              renderPlate={(seat) => <SeatPlate state={state} index={seat} seat={online?.seats[seat]} />}
+              seatColors={PLAYER_COLORS}
+              reducedMotion={reducedMotion}
+              soundOn={settings.sound}
+              onSlow={settings.view === 'auto' ? () => fallBack('The 3D table was running slowly, so the classic view is on. You can switch back under Settings.') : undefined}
+              onError={() => fallBack('The 3D table could not start on this device, so the classic view is on.')}
+            />
+          </Suspense>
+          </Catch>
+
+          <div className="hud hud-self">
+            <SeatPlate state={state} index={tableSeat} seat={online?.seats[tableSeat]} self={!!online ? online.you !== null : true} />
+          </div>
+
+          <div className="hud hud-log">
+            <button className="small" onClick={() => setLogOpen(!logOpen)} aria-expanded={logOpen}>
+              {logOpen ? 'Hide log' : 'Log'}
+            </button>
+            {logOpen && <ActionLog state={state} myName={seated ? state.players[online!.you!].name : null} />}
+          </div>
+
+          {interactive && (
+            <PickBar picked={picked} setPicked={setPicked} reasonFor={reasonFor} dispatch={dispatch} />
+          )}
+
+          {selected && (
+            <Inspector
+              selected={selected}
+              state={state}
+              bonuses={interactive ? myBonuses : undefined}
+              reasonFor={reasonFor}
+              dispatch={dispatch}
+              onClose={() => setSelected(null)}
+            />
+          )}
+        </main>
+      )}
+
+      {!tableMode && (
       <main className="layout">
         <section className="board">
           <Patrons state={state} />
@@ -291,6 +371,7 @@ function Board({ state, dispatch, undo, canUndo, error, clearError, onNewGame, o
           <ActionLog state={state} myName={seated ? state.players[online!.you!].name : null} />
         </aside>
       </main>
+      )}
 
       {isHuman && state.phase !== 'action' && state.phase !== 'gameover' && (
         <div className="confirm-bar">
@@ -327,6 +408,241 @@ function Board({ state, dispatch, undo, canUndo, error, clearError, onNewGame, o
         </div>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Table view: HTML heads-up display
+
+/** If the 3D code fails to load or crashes, report it so the board can switch to the classic view. */
+class Catch extends Component<{ onError: () => void; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch() {
+    this.props.onError();
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
+function SettingsMenu({
+  settings,
+  update,
+  view,
+  reducedMotion,
+  tablePossible,
+}: Pick<ReturnType<typeof useSettings>, 'settings' | 'update' | 'view' | 'reducedMotion' | 'tablePossible'>) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="settings">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} aria-haspopup="true">
+        Settings
+      </button>
+      {open && (
+        <div className="settings-menu" role="menu">
+          <div className="field">
+            <span>View</span>
+            <div className="seg">
+              <span className="btn-wrap" title={tablePossible ? 'Sit at the 3D table' : 'This browser cannot show 3D graphics.'}>
+                <button className={view === 'table' ? 'primary small' : 'small'} disabled={!tablePossible} onClick={() => update({ view: 'table' })}>
+                  Table (3D)
+                </button>
+              </span>
+              <button className={view === 'classic' ? 'primary small' : 'small'} onClick={() => update({ view: 'classic' })}>
+                Classic (2D)
+              </button>
+            </div>
+          </div>
+          <div className="field">
+            <span>Animations</span>
+            <div className="seg">
+              <button className={!reducedMotion ? 'primary small' : 'small'} onClick={() => update({ reduceMotion: false })}>
+                On
+              </button>
+              <button className={reducedMotion ? 'primary small' : 'small'} onClick={() => update({ reduceMotion: true })}>
+                Reduced
+              </button>
+            </div>
+          </div>
+          <div className="field">
+            <span>Sound</span>
+            <div className="seg">
+              <button className={settings.sound ? 'primary small' : 'small'} onClick={() => update({ sound: true })}>
+                On
+              </button>
+              <button className={!settings.sound ? 'primary small' : 'small'} onClick={() => update({ sound: false })}>
+                Off
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Compact name plate: name, prestige, exact token and bonus counts. Floats over the 3D table. */
+function SeatPlate({ state, index, seat, self = false }: { state: GameState; index: number; seat?: SeatView; self?: boolean }) {
+  const p = state.players[index];
+  const b = bonuses(p);
+  const isCurrent = state.current === index && state.phase !== 'gameover';
+  const offline = !!seat && seat.kind === 'human' && !seat.connected;
+  return (
+    <div className={`plate${isCurrent ? ' current' : ''}${self ? ' self' : ''}`} style={{ ['--pc' as string]: PLAYER_COLORS[index] }}>
+      <div className="plate-head">
+        <span className="plate-name">
+          {isCurrent && <span className="turn-arrow">▶ </span>}
+          {self ? 'You' : p.name}
+        </span>
+        <span className="plate-points" title="Prestige">
+          {prestige(p)}
+          <small>/{WIN_POINTS}</small>
+        </span>
+      </div>
+      <div className="plate-sub">
+        {self ? p.name : CONTROLLER_LABEL[p.controller]}
+        {isCurrent && p.controller !== 'human' && ' · thinking…'}
+        {offline && <span className="offline-badge"> · offline</span>}
+        {index === state.startPlayer && ' · 1st'}
+      </div>
+      <div className="plate-row" title={`Tokens (${tokenTotal(p.tokens)}/${MAX_TOKENS})`}>
+        {TOKENS.map((t) => (
+          <span key={t} className={`mini${p.tokens[t] ? '' : ' zero'}`}>
+            <GemIcon gem={t} size={13} />
+            {p.tokens[t]}
+          </span>
+        ))}
+      </div>
+      <div className="plate-row cards" title="Card bonuses">
+        {GEMS.map((g) => (
+          <span key={g} className={`mini${b[g] ? '' : ' zero'}`}>
+            <GemIcon gem={g} size={13} />
+            {b[g]}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PickBar({
+  picked,
+  setPicked,
+  reasonFor,
+  dispatch,
+}: {
+  picked: Gem[];
+  setPicked: (g: Gem[]) => void;
+  reasonFor: (a: Action) => string | null;
+  dispatch: (a: Action) => void;
+}) {
+  const action = pickAction(picked);
+  const reason = action ? reasonFor(action) : PICK_HINT;
+  const passReason = reasonFor({ type: 'pass' });
+  return (
+    <div className="confirm-bar pick-bar">
+      <span className="picked">
+        {picked.length ? picked.map((g, i) => <GemIcon key={i} gem={g} size={22} />) : <span className="muted">Your turn: click gem stacks, a card or a deck</span>}
+      </span>
+      {picked.length > 0 && (
+        <>
+          <span className="btn-wrap" title={reason ?? ''}>
+            <button
+              className="primary"
+              disabled={!action || reason !== null}
+              onClick={() => {
+                if (action) dispatch(action);
+                setPicked([]);
+              }}
+            >
+              Take {action?.type === 'take2' ? 2 : picked.length} gem{picked.length === 1 && action?.type !== 'take2' ? '' : 's'}
+            </button>
+          </span>
+          <button onClick={() => setPicked([])}>Clear</button>
+        </>
+      )}
+      {passReason === null && (
+        <button className="primary" onClick={() => dispatch({ type: 'pass' })}>
+          No legal move — pass
+        </button>
+      )}
+      {picked.length > 0 && reason && <span className="muted pick-reason">{reason}</span>}
+    </div>
+  );
+}
+
+/** Docked panel showing what you clicked on the table, crisp and with its actions. */
+function Inspector({
+  selected,
+  state,
+  bonuses: b,
+  reasonFor,
+  dispatch,
+  onClose,
+}: {
+  selected: TableSelection;
+  state: GameState;
+  bonuses?: GemCounts;
+  reasonFor: (a: Action) => string | null;
+  dispatch: (a: Action) => void;
+  onClose: () => void;
+}) {
+  let body: JSX.Element;
+  let title: string;
+  if (selected.kind === 'deck') {
+    const count = state.decks[selected.tier - 1].length;
+    title = `${TIER_NAMES[selected.tier]} deck`;
+    body = (
+      <>
+        <CardBack tier={selected.tier} />
+        <p className="muted">{count} card{count === 1 ? '' : 's'} left. Reserving takes the top card face down, and 1 Gold if any is left.</p>
+        <ActionButton label="Reserve top card" action={{ type: 'reserve', source: { kind: 'deck', tier: selected.tier } }} reasonFor={reasonFor} dispatch={dispatch} primary />
+      </>
+    );
+  } else if (selected.kind === 'patron') {
+    title = 'Patron';
+    body = (
+      <>
+        <PatronTile id={selected.patronId} bonuses={b} />
+        <p className="muted">Visits automatically at the end of your turn once your card bonuses meet the requirement.</p>
+      </>
+    );
+  } else {
+    const card = getCard(selected.cardId);
+    title = card.name;
+    const buttons =
+      selected.kind === 'market'
+        ? [
+            cardButton('Buy', { type: 'buy', source: { kind: 'market', tier: selected.tier, slot: selected.slot } }, reasonFor, dispatch, true),
+            cardButton('Reserve', { type: 'reserve', source: { kind: 'market', tier: selected.tier, slot: selected.slot } }, reasonFor, dispatch),
+          ]
+        : selected.kind === 'reserved'
+          ? [cardButton('Buy', { type: 'buy', source: { kind: 'reserved', index: selected.index } }, reasonFor, dispatch, true)]
+          : [];
+    const blocked = buttons.find((x) => x.primary)?.disabledReason;
+    body = (
+      <>
+        <CardView card={card} bonuses={b} buttons={buttons} />
+        <p className="muted">
+          {TIER_NAMES[card.tier]} · {GEM_LABEL[card.bonus]} bonus{card.points ? ` · ${card.points} prestige` : ''}
+        </p>
+        {blocked && <p className="inspector-reason">{blocked}</p>}
+      </>
+    );
+  }
+  return (
+    <aside className="inspector" aria-label="Selected item">
+      <div className="inspector-head">
+        <b>{title}</b>
+        <button className="small" onClick={onClose} aria-label="Close">
+          ✕
+        </button>
+      </div>
+      {body}
+    </aside>
   );
 }
 

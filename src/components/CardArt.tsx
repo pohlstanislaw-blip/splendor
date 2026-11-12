@@ -302,34 +302,53 @@ function HallScene({ r, gem }: { r: Rng; gem: Gem }) {
   return <>{parts}</>;
 }
 
-export const CardArt = memo(function CardArt({ card }: { card: Card }) {
+/** The picture itself (no <svg> wrapper), in a 120 × 168 box: used by the 2D card and by 3D textures. */
+export function CardScene({ card }: { card: Card }) {
   const r = seeded(card.id);
   const Scene = card.tier === 1 ? MineScene : card.tier === 2 ? WorkshopScene : HallScene;
   return (
-    <svg className="card-art" viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid slice" aria-hidden focusable="false">
+    <>
       <Scene r={r} gem={card.bonus} />
       <rect width={VW} height={VH} fill="url(#art-vignette)" />
+    </>
+  );
+}
+export const CARD_ART_SIZE = { w: VW, h: VH };
+
+export const CardArt = memo(function CardArt({ card }: { card: Card }) {
+  return (
+    <svg className="card-art" viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid slice" aria-hidden focusable="false">
+      <CardScene card={card} />
     </svg>
   );
 });
+
+/** The filters/gradients the scenes reference (children of a <defs>). */
+export function ArtDefsContent() {
+  return (
+    <>
+      <filter id="art-blur" x="-100%" y="-100%" width="300%" height="300%">
+        <feGaussianBlur stdDeviation="3" />
+      </filter>
+      <radialGradient id="art-vignette" cx="0.5" cy="0.45" r="0.75">
+        <stop offset="0.55" stopColor="#000" stopOpacity="0" />
+        <stop offset="1" stopColor="#000" stopOpacity="0.6" />
+      </radialGradient>
+      <linearGradient id="art-velvet" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stopColor="#000" stopOpacity="0.35" />
+        <stop offset="0.5" stopColor="#fff" stopOpacity="0.12" />
+        <stop offset="1" stopColor="#000" stopOpacity="0.35" />
+      </linearGradient>
+    </>
+  );
+}
 
 /** Shared filters/gradients for card art — render once near the root. */
 export function ArtDefs() {
   return (
     <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden focusable="false">
       <defs>
-        <filter id="art-blur" x="-100%" y="-100%" width="300%" height="300%">
-          <feGaussianBlur stdDeviation="3" />
-        </filter>
-        <radialGradient id="art-vignette" cx="0.5" cy="0.45" r="0.75">
-          <stop offset="0.55" stopColor="#000" stopOpacity="0" />
-          <stop offset="1" stopColor="#000" stopOpacity="0.6" />
-        </radialGradient>
-        <linearGradient id="art-velvet" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#000" stopOpacity="0.35" />
-          <stop offset="0.5" stopColor="#fff" stopOpacity="0.12" />
-          <stop offset="1" stopColor="#000" stopOpacity="0.35" />
-        </linearGradient>
+        <ArtDefsContent />
       </defs>
     </svg>
   );

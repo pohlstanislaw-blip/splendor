@@ -582,3 +582,75 @@ input, select {
 .card.face.bought .face-band { height: 21.5%; padding: 0 6% 0 5%; }
 .card.face.bought .face-bonus svg { width: 22cqw; height: 22cqw; }
 @media (prefers-reduced-motion: reduce) { .card.face.bought:hover { transform: none; } }
+
+/* =========================================================================
+   Table (3D) view: the canvas fills the window under the top bar; HTML floats on top
+   ========================================================================= */
+.app.table-mode { height: 100%; min-height: 100vh; overflow: hidden; }
+.app.table-mode .lantern-vignette { z-index: 4; }
+.table-wrap { position: relative; height: calc(100vh - 58px); min-height: 420px; overflow: hidden; background: #0b0806; }
+.table-canvas { position: absolute !important; inset: 0; }
+.table-loading { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--font-head); letter-spacing: 0.1em; color: var(--brass); }
+.hud { position: absolute; z-index: 8; }
+.hud-self { left: max(14px, env(safe-area-inset-left, 0px)); bottom: 14px; }
+.hud-log { right: 14px; top: 12px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; max-width: min(340px, 80vw); }
+.hud-log .log { max-height: 46vh; width: 100%; }
+
+.plate {
+  min-width: 150px; padding: 6px 10px 7px; border-radius: 8px; color: var(--text); font-size: 13px; white-space: nowrap;
+  background: linear-gradient(170deg, #232d4aee, #1a2238ee); border: 1px solid var(--brass-lo);
+  box-shadow: inset 3px 0 0 var(--pc), 0 4px 12px #000a;
+}
+.plate.current { box-shadow: inset 3px 0 0 var(--pc), 0 0 0 2px var(--brass-hi), 0 0 18px #ffb34766; }
+.plate.self { background: linear-gradient(170deg, #5a1a2bee, #3b111cee); font-size: 14px; min-width: 190px; }
+.plate-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.plate-name { font-family: var(--font-head); font-weight: 700; font-size: 15px; }
+.plate.self .plate-name { font-size: 18px; }
+.plate-points { font-family: var(--font-head); font-weight: 900; font-size: 20px; color: var(--brass-hi); }
+.plate-points small { font-size: 11px; color: var(--muted); font-weight: 500; }
+.plate-sub { font-size: 11.5px; font-style: italic; color: var(--muted); margin-bottom: 3px; }
+.plate-row { display: flex; gap: 7px; }
+.plate-row .mini { font-size: 13px; gap: 2px; }
+.plate-row.cards { margin-top: 2px; padding-top: 2px; border-top: 1px solid #c9a05233; }
+
+.supply3d {
+  display: flex; align-items: baseline; gap: 4px; padding: 0 7px; border-radius: 99px; white-space: nowrap;
+  font-family: var(--font-head); font-size: 15px; color: var(--ink);
+  background: var(--parchment); border: 1px solid var(--brass-lo); box-shadow: 0 2px 5px #000a;
+}
+.supply3d small { font-family: var(--font-body); font-style: italic; font-size: 11px; color: #3d7a3a; }
+.supply3d i { font-style: normal; font-weight: 900; color: #8a4b00; }
+.supply3d.sel { background: var(--brass-hi); }
+.supply3d.empty { opacity: 0.5; }
+
+.pick-bar { flex-wrap: wrap; justify-content: center; max-width: min(92vw, 720px); }
+.pick-reason { font-size: 14px; flex-basis: 100%; text-align: center; }
+
+.inspector {
+  position: absolute; z-index: 9; right: 14px; top: 50%; transform: translateY(-50%);
+  width: 232px; max-height: 86%; overflow: auto; padding: 10px 12px 12px; border-radius: 10px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;
+  background: linear-gradient(170deg, #232d4af2, #1a2238f2); border: 1px solid var(--brass);
+  box-shadow: 0 0 0 1px #000, 0 10px 30px #000c, 0 0 26px #ffb34722;
+  animation: modal-in 0.2s ease-out;
+}
+.inspector-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; font-family: var(--font-head); color: var(--brass-hi); text-align: left; }
+.inspector .card.face { width: 190px; }
+.inspector .card-back { width: 150px; aspect-ratio: 5 / 7; min-height: 0; }
+.inspector p { margin: 0; font-size: 14px; }
+.inspector-reason { color: #ffcfa8; }
+.inspector .patron { width: 170px; }
+
+.settings { position: relative; }
+.settings-menu {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 60; width: 300px; padding: 4px 14px; border-radius: 10px;
+  background: linear-gradient(170deg, var(--velvet-navy-2), var(--velvet-navy)); border: 1px solid var(--brass);
+  box-shadow: 0 10px 30px #000c;
+}
+.settings-menu .field { margin: 10px 0; font-size: 15px; }
+.error-toast.notice { background: #2a221c; top: 112px; }
+@media (max-width: 700px) {
+  .inspector { right: 8px; width: 200px; }
+  .inspector .card.face { width: 160px; }
+  .hud-self .plate { min-width: 150px; }
+}

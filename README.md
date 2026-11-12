@@ -21,6 +21,21 @@ npm run dev        # open the printed http://localhost:5173
 
 A local game is saved to `localStorage` after every move, so a page refresh keeps your game.
 
+## Table view (3D) and classic view
+
+The game has two looks, switched under **Settings** in the top bar:
+
+- **Table (3D):** you sit at a candlelit table. The market, decks, token stacks and patrons lie in front of you, your cards are at your edge, and the other players sit around the table in turn order with their own cards and tokens.
+  - Click a card, deck or patron to open the **inspector** on the right, with the full card and its Buy / Reserve buttons.
+  - Click token stacks to pick gems (click one stack twice to take 2), then **Take**.
+  - Buying or reserving plays a pick-up animation; tokens fly between the supply and players.
+  - Name plates show each player's exact prestige, tokens and card bonuses.
+- **Classic (2D):** the flat board with player panels.
+
+Settings also has **Animations** (On / Reduced; it follows your system's reduce-motion setting by default) and **Sound** (a soft clack for chips and cards, off by default). All three are remembered per browser.
+
+The table view needs WebGL. On small screens, or if it can't start or runs too slowly, the game uses the classic view and tells you. The 3D code is a separate file that loads only when the table view is used. All 3D art is drawn in code from the same card pictures as the classic view; there are no downloaded models, images or sounds.
+
 ## Online play
 
 Choose **Online** in the new-game dialog:
@@ -87,6 +102,8 @@ src/online/          protocol.ts (messages), useOnline.ts (connection, rejoin)
 server/              index.ts (HTTP + WebSocket), rooms.ts (rooms, hidden info), tests
 render.yaml          Render deployment blueprint
 src/App.tsx          board, panels, dialogs
+src/table3d/         3D table view: layout.ts (positions), Mover.tsx (animation), textures.tsx,
+                     chips.ts (token identities), TableView.tsx (scene)
 src/components/      Gem (cuts), CardView (tier frames), CardArt (procedural scenes),
                      Portrait (patron silhouettes), Fx (animations)
 scripts/             balance.ts, simulate.ts
