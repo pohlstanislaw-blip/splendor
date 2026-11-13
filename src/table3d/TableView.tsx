@@ -46,7 +46,8 @@ export interface TableViewProps {
   selected: TableSelection | null;
   onSelect: (s: TableSelection | null) => void;
   /** HTML name plate for an opponent's seat */
-  renderPlate: (seat: number) => ReactNode;
+  /** HTML name plate for an opponent's seat, or null for none */
+  renderPlate: (seat: number) => ReactNode | null;
   seatColors: string[];
   reducedMotion: boolean;
   soundOn: boolean;
@@ -705,9 +706,11 @@ function Scene(props: TableViewProps) {
         seat === viewer ? null : (
           <group key={seat}>
             <Figure frame={frames[seat]} color={props.seatColors[seat]} active={state.current === seat && state.phase !== 'gameover'} variant={seat} />
-            <Html position={platePos(frames[seat])} center zIndexRange={[6, 0]} style={{ pointerEvents: 'none' }}>
-              {props.renderPlate(seat)}
-            </Html>
+            {props.renderPlate(seat) !== null && (
+              <Html position={platePos(frames[seat])} center zIndexRange={[6, 0]} style={{ pointerEvents: 'none' }}>
+                {props.renderPlate(seat)}
+              </Html>
+            )}
           </group>
         ),
       )}

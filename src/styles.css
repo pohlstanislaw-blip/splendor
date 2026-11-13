@@ -657,3 +657,9 @@ input, select {
 
 .invite-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 .invite-callout p { margin: 4px 0 0; font-size: 15px; }
+.hud-buttons { display: flex; gap: 6px; }
+.plate.small {
+  min-width: 0; display: inline-flex; align-items: baseline; gap: 6px; padding: 2px 9px 3px; border-radius: 99px; opacity: 0.92;
+}
+.plate.small .plate-name { font-size: 13px; }
+.plate.small .plate-points { font-size: 15px; }

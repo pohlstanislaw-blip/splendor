@@ -30,7 +30,7 @@ The game has two looks, switched under **Settings** in the top bar:
   - Click token stacks to pick gems (click one stack twice to take 2), then **Take**.
   - **Drag** (mouse or finger) to look around the table; the view stays where you leave it. **Double-click** empty table or press **R** to look straight ahead again. Moving the mouse without dragging never moves the view.
   - Buying or reserving plays a pick-up animation; tokens fly between the supply and players.
-  - Name plates show each player's exact prestige, tokens and card bonuses.
+  - Name plates show each player's exact prestige, tokens and card bonuses. If they're in the way, switch opponents' plates between **Full**, **Small** (name and prestige only) and **Off** with the **Plates** button at the top right, the **N** key, or Settings → Name plates.
 - **Classic (2D):** the flat board with player panels.
 
 Settings also has **Animations** (On / Reduced; it follows your system's reduce-motion setting by default) and **Sound** (a soft clack for chips and cards, off by default). All three are remembered per browser.

@@ -9,10 +9,16 @@ export interface Settings {
   /** null = follow the system "reduce motion" setting */
   reduceMotion: boolean | null;
   sound: boolean;
+  /** opponents' name plates on the 3D table */
+  plates: PlateMode;
 }
 
+export type PlateMode = 'full' | 'small' | 'off';
+export const PLATE_MODES: PlateMode[] = ['full', 'small', 'off'];
+export const PLATE_LABEL: Record<PlateMode, string> = { full: 'Full', small: 'Small', off: 'Off' };
+
 const KEY = 'facets-settings';
-const DEFAULTS: Settings = { view: 'auto', reduceMotion: null, sound: false };
+const DEFAULTS: Settings = { view: 'auto', reduceMotion: null, sound: false, plates: 'full' };
 
 /**
  * Version 1 saved an automatic "too slow" fallback as if the player had chosen Classic.

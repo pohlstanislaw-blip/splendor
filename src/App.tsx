@@ -34,7 +34,7 @@ import { HIDDEN_PREFIX, type SeatKind, type SeatView } from './online/protocol';
 import { inviteCodeFromUrl, inviteLink, savedName, useOnline, type OnlineApi } from './online/useOnline';
 import { ordinal, personalizeLog, placeOf, seatOrderFrom } from './online/perspective';
 import { PICK_HINT, pickAction, togglePick } from './picks';
-import { useSettings } from './settings';
+import { PLATE_LABEL, PLATE_MODES, useSettings } from './settings';
 import type { TableSelection } from './table3d/types';
 
 // three.js and the 3D scene load only when the table view is used
@@ -220,6 +220,18 @@ function Board({ state, dispatch, undo, canUndo, error, clearError, onNewGame, o
     setNotice(why);
   };
   const tableMode = view === 'table';
+  const cyclePlates = () => update({ plates: PLATE_MODES[(PLATE_MODES.indexOf(settings.plates) + 1) % PLATE_MODES.length] });
+  // N cycles the name plates (not while typing)
+  const cycleRef = useRef(cyclePlates);
+  cycleRef.current = cyclePlates;
+  useEffect(() => {
+    if (!tableMode) return;
+    const key = (e: KeyboardEvent) => {
+      if ((e.key === 'n' || e.key === 'N') && !e.ctrlKey && !e.metaKey && !e.altKey && !(e.target instanceof HTMLInputElement)) cycleRef.current();
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [tableMode]);
 
   return (
     <div className={`app${tableMode ? ' table-mode' : ''}`}>
@@ -292,7 +304,9 @@ function Board({ state, dispatch, undo, canUndo, error, clearError, onNewGame, o
               onToggleGem={(g) => setPicked(togglePick(picked, g))}
               selected={selected}
               onSelect={setSelected}
-              renderPlate={(seat) => <SeatPlate state={state} index={seat} seat={online?.seats[seat]} />}
+              renderPlate={(seat) =>
+                settings.plates === 'off' ? null : <SeatPlate state={state} index={seat} seat={online?.seats[seat]} small={settings.plates === 'small'} />
+              }
               seatColors={PLAYER_COLORS}
               reducedMotion={reducedMotion}
               soundOn={settings.sound}
@@ -311,9 +325,19 @@ function Board({ state, dispatch, undo, canUndo, error, clearError, onNewGame, o
           </div>
 
           <div className="hud hud-log">
-            <button className="small" onClick={() => setLogOpen(!logOpen)} aria-expanded={logOpen}>
-              {logOpen ? 'Hide log' : 'Log'}
-            </button>
+            <div className="hud-buttons">
+              <button
+                className="small"
+                onClick={cyclePlates}
+                title="Opponents' name plates: Full → Small → Off (key N)"
+                aria-label={`Name plates: ${PLATE_LABEL[settings.plates]}. Click to change.`}
+              >
+                Plates: {PLATE_LABEL[settings.plates]}
+              </button>
+              <button className="small" onClick={() => setLogOpen(!logOpen)} aria-expanded={logOpen}>
+                {logOpen ? 'Hide log' : 'Log'}
+              </button>
+            </div>
             {logOpen && <ActionLog state={state} myName={seated ? state.players[online!.you!].name : null} />}
           </div>
 
@@ -492,6 +516,16 @@ function SettingsMenu({
               </button>
             </div>
           </div>
+          <div className="field" title="Opponents' name plates on the 3D table (key N)">
+            <span>Name plates</span>
+            <div className="seg">
+              {PLATE_MODES.map((m) => (
+                <button key={m} className={settings.plates === m ? 'primary small' : 'small'} onClick={() => update({ plates: m })}>
+                  {PLATE_LABEL[m]}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="field">
             <span>Sound</span>
             <div className="seg">
@@ -510,11 +544,25 @@ function SettingsMenu({
 }
 
 /** Compact name plate: name, prestige, exact token and bonus counts. Floats over the 3D table. */
-function SeatPlate({ state, index, seat, self = false }: { state: GameState; index: number; seat?: SeatView; self?: boolean }) {
+function SeatPlate({ state, index, seat, self = false, small = false }: { state: GameState; index: number; seat?: SeatView; self?: boolean; small?: boolean }) {
   const p = state.players[index];
   const b = bonuses(p);
   const isCurrent = state.current === index && state.phase !== 'gameover';
   const offline = !!seat && seat.kind === 'human' && !seat.connected;
+  if (small) {
+    return (
+      <div
+        className={`plate small${isCurrent ? ' current' : ''}`}
+        style={{ ['--pc' as string]: PLAYER_COLORS[index] }}
+        title={`${p.name}: ${prestige(p)} prestige${isCurrent ? ' · their turn' : ''}`}
+      >
+        {isCurrent && <span className="turn-arrow">▶ </span>}
+        <span className="plate-name">{p.name}</span>
+        {offline && <span className="offline-badge"> · offline</span>}
+        <span className="plate-points">{prestige(p)}</span>
+      </div>
+    );
+  }
   return (
     <div className={`plate${isCurrent ? ' current' : ''}${self ? ' self' : ''}`} style={{ ['--pc' as string]: PLAYER_COLORS[index] }}>
       <div className="plate-head">
