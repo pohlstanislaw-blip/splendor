@@ -4,7 +4,7 @@ import { Html } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Component, memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as THREE from 'three';
-import { GEM_COLORS, GemIcon } from '../components/Gem';
+import { GEM_COLORS } from '../components/Gem';
 import { GEMS, PATRON_BY_ID, TAKE_TWO_MIN_PILE, TOKENS, getCard, paymentFor, type GameState, type Gem, type Tier, type Token } from '../engine';
 import { HIDDEN_PREFIX } from '../online/protocol';
 import { assignChips, stackIndex, type ChipLocation } from './chips';
@@ -31,7 +31,7 @@ import {
 import { MotionContext, Mover, type Motion, type Via } from './Mover';
 import { DRAG_THRESHOLD, justDragged, markDragEnded } from './drag';
 import { useKick } from './kick';
-import { cardBackTexture, cardFaceTexture, chipTexture, glowTexture, onTextureLoaded, patronTexture, woodTexture } from './textures';
+import { cardBackTexture, cardFaceTexture, chipTexture, glowTexture, onTextureLoaded, patronTexture, setMaxAnisotropy, woodTexture } from './textures';
 import type { TableSelection } from './types';
 
 export interface TableViewProps {
@@ -50,8 +50,6 @@ export interface TableViewProps {
   seatColors: string[];
   reducedMotion: boolean;
   soundOn: boolean;
-  /** show readable cost labels on market cards and the viewer's hand */
-  costLabels: boolean;
   /** called once, with the measured frame rate, if the scene runs too slowly to be pleasant */
   onSlow?: (fps: number) => void;
   /** called if WebGL fails */
@@ -124,35 +122,6 @@ interface CardItem {
   select?: TableSelection;
   /** the viewer can afford it right now */
   affordable?: boolean;
-  /** show a readable cost label; `covered` marks colours the viewer's bonuses already pay */
-  label?: { covered: Partial<Record<Gem, boolean>> };
-}
-
-/**
- * The card's cost as sharp screen text, laid over the lower part of the card so it can be read
- * from the seat without opening the card. Green = your card bonuses already pay that colour.
- */
-function CostLabel({ cardId, covered }: { cardId: string; covered: Partial<Record<Gem, boolean>> }) {
-  const card = getCard(cardId);
-  const costs = GEMS.filter((g) => card.cost[g]);
-  return (
-    <Html position={[0.02, -0.3, CARD.t / 2 + 0.01]} center zIndexRange={[4, 0]} style={{ pointerEvents: 'none' }}>
-      <div className={`cost-label${costs.length > 2 ? ' two-col' : ''}`} aria-label={`Costs ${costs.map((g) => `${card.cost[g]} ${g}`).join(', ')}`}>
-        {costs.map((g) => (
-          <span
-            key={g}
-            className={`cost-chip gem-${g}${covered[g] ? ' covered' : ''}`}
-            style={{ ['--chip' as string]: GEM_COLORS[g].fill, ['--chip-dark' as string]: GEM_COLORS[g].dark }}
-            title={covered[g] ? 'Your card bonuses already pay this' : undefined}
-          >
-            <GemIcon gem={g} size={14} />
-            <b>{card.cost[g]}</b>
-            {covered[g] && <i aria-label="covered by your bonuses">✓</i>}
-          </span>
-        ))}
-      </div>
-    </Html>
-  );
 }
 
 const CardMesh = memo(function CardMesh({
@@ -200,7 +169,6 @@ const CardMesh = memo(function CardMesh({
           onSelect(item.select);
         }}
       />
-      {item.label && item.cardId && <CostLabel cardId={item.cardId} covered={item.label.covered} />}
       {item.affordable && (
         <mesh position={[0, 0, -0.004]} renderOrder={1}>
           <planeGeometry args={[CARD.w + 0.14, CARD.h + 0.14]} />
@@ -608,6 +576,7 @@ function PerfWatch({ onSlow }: { onSlow?: (fps: number) => void }) {
   const acc = useRef({ warm: 0, t: 0, frames: 0, done: false, round: 0 });
   const invalidate = useThree((s) => s.invalidate);
   const setDpr = useThree((s) => s.setDpr);
+  const dpr = useThree((s) => s.viewport.dpr);
   useFrame((_, dt) => {
     const a = acc.current;
     if (a.done) return;
@@ -621,10 +590,10 @@ function PerfWatch({ onSlow }: { onSlow?: (fps: number) => void }) {
     a.frames++;
     if (a.t < 4) return;
     const fps = a.frames / a.t;
-    if (fps < SHARP_FPS && a.round === 0 && window.devicePixelRatio > 1) {
-      // first try: fewer pixels, then measure again
-      setDpr(1);
-      Object.assign(a, { warm: 2, t: 0, frames: 0, round: 1 });
+    if (fps < SHARP_FPS && dpr > 1 && a.round < 2) {
+      // too slow at this sharpness: step down (2 → 1.5 → 1) and measure again
+      setDpr(dpr > 1.5 ? 1.5 : 1);
+      Object.assign(a, { warm: 2, t: 0, frames: 0, round: a.round + 1 });
       return;
     }
     a.done = true;
@@ -666,20 +635,10 @@ function Scene(props: TableViewProps) {
     const out: CardItem[] = [];
     const me = state.players[state.current];
     const canAfford = (id: string) => props.interactive && !!paymentFor(me, getCard(id));
-    // cost labels are read from the viewer's seat, so "covered" uses the viewer's own bonuses
-    const viewerBonus: Record<string, number> = {};
-    for (const id of state.players[viewer].cards) viewerBonus[getCard(id).bonus] = (viewerBonus[getCard(id).bonus] ?? 0) + 1;
-    const labelFor = (id: string) => {
-      if (!props.costLabels) return undefined;
-      const card = getCard(id);
-      const covered: Partial<Record<Gem, boolean>> = {};
-      for (const g of GEMS) if (card.cost[g]) covered[g] = (viewerBonus[g] ?? 0) >= card.cost[g]!;
-      return { covered };
-    };
     for (const tier of [1, 2, 3] as Tier[]) {
       const deckTop = deckPose(tier, state.decks[tier - 1].length);
       state.market[tier - 1].forEach((id, slot) => {
-        if (id) out.push({ key: id, cardId: id, tier, pose: marketPose(tier, slot), zone: 'market', from: deckTop, select: { kind: 'market', tier, slot, cardId: id }, affordable: canAfford(id), label: labelFor(id) });
+        if (id) out.push({ key: id, cardId: id, tier, pose: marketPose(tier, slot), zone: 'market', from: deckTop, select: { kind: 'market', tier, slot, cardId: id }, affordable: canAfford(id) });
       });
     }
     state.players.forEach((p, seat) => {
@@ -704,13 +663,12 @@ function Scene(props: TableViewProps) {
           via: viaFor(seat),
           select: known ? (seat === viewer ? { kind: 'reserved', index: i, cardId: r.cardId } : { kind: 'card', cardId: r.cardId }) : undefined,
           affordable: known && seat === viewer && seat === state.current && canAfford(r.cardId),
-          label: known && seat === viewer ? labelFor(r.cardId) : undefined,
         });
       });
     });
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.market, state.decks, state.players, state.current, frames, viewer, props.interactive, props.costLabels]);
+  }, [state.market, state.decks, state.players, state.current, frames, viewer, props.interactive]);
 
   const patrons = useMemo(() => {
     const out: { id: string; pose: Pose; zone: string; via: Via }[] = [];
@@ -777,13 +735,14 @@ export default function TableView(props: TableViewProps) {
         className="table-canvas"
         frameloop="demand"
         shadows="percentage"
-        dpr={[1, 1.5]}
+        dpr={[1, 2]}
         camera={{ fov: 42, near: 0.1, far: 80, position: [0, 8, 9.4] }}
         gl={{ antialias: true, powerPreference: 'high-performance' }}
         onCreated={({ gl }) => {
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = 1.05;
           gl.setClearColor('#0b0806');
+          setMaxAnisotropy(gl.capabilities.getMaxAnisotropy());
           // shadows are recomputed only when something moves (see kick.ts)
           gl.shadowMap.autoUpdate = false;
           gl.shadowMap.needsUpdate = true;

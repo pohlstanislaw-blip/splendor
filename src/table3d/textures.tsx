@@ -11,6 +11,16 @@ import { GEMS, type Card, type Gem, type Patron, type Tier, type Token } from '.
 
 const cache = new Map<string, THREE.CanvasTexture>();
 
+/** Strongest texture filtering the graphics card offers: keeps angled cards sharp. */
+let maxAnisotropy = 8;
+export function setMaxAnisotropy(n: number) {
+  maxAnisotropy = Math.max(1, n);
+  for (const tex of cache.values()) {
+    tex.anisotropy = maxAnisotropy;
+    tex.needsUpdate = true;
+  }
+}
+
 /** The scene draws on demand, so it must hear when a picture finishes decoding. */
 const loadedListeners = new Set<() => void>();
 export function onTextureLoaded(fn: () => void) {
@@ -28,11 +38,12 @@ function svgTexture(key: string, w: number, h: number, placeholder: string, buil
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext('2d')!;
+  ctx.imageSmoothingQuality = 'high';
   ctx.fillStyle = placeholder;
   ctx.fillRect(0, 0, w, h);
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8;
+  tex.anisotropy = maxAnisotropy;
   cache.set(key, tex);
   const img = new Image();
   img.onload = () => {
@@ -67,7 +78,7 @@ function CostDisc({ gem, n, cx, cy, r }: { gem: Gem; n: number; cx: number; cy: 
   const light = gem === 'moonstone';
   return (
     <g>
-      <circle cx={cx} cy={cy} r={r + 1.6} fill="#fffaf0" />
+      <circle cx={cx} cy={cy} r={r + 1.8} fill="#fffaf0" stroke="#000" strokeOpacity="0.45" strokeWidth="0.6" />
       <circle cx={cx} cy={cy} r={r} fill={`url(#gem-rad-${gem})`} />
       <g opacity="0.3">
         <GemAt gem={gem} x={cx - r * 0.8} y={cy - r * 0.8} size={r * 1.6} />
@@ -79,10 +90,10 @@ function CostDisc({ gem, n, cx, cy, r }: { gem: Gem; n: number; cx: number; cy: 
         fontFamily={SERIF}
         fontStyle="italic"
         fontWeight="700"
-        fontSize={r * 1.45}
-        fill={light ? '#2d3546' : '#fff'}
+        fontSize={r * 1.6}
+        fill={light ? '#1b2130' : '#fff'}
         stroke={light ? '#fff' : '#000'}
-        strokeWidth="0.5"
+        strokeWidth="1.1"
         paintOrder="stroke"
       >
         {n}
@@ -93,10 +104,10 @@ function CostDisc({ gem, n, cx, cy, r }: { gem: Gem; n: number; cx: number; cy: 
 
 /** The card face: full-bleed scene, translucent band with points and bonus gem, cost discs bottom-left. */
 export function cardFaceTexture(card: Card): THREE.CanvasTexture {
-  return svgTexture(`face:${card.id}`, 480, 672, '#1a1512', () => {
+  return svgTexture(`face:${card.id}`, 640, 896, '#1a1512', () => {
     const costs = GEMS.filter((g) => card.cost[g]);
     return (
-      <svg xmlns="http://www.w3.org/2000/svg" width="480" height="672" viewBox="0 0 120 168">
+      <svg xmlns="http://www.w3.org/2000/svg" width="640" height="896" viewBox="0 0 120 168">
         <Defs />
         <clipPath id="card-clip">
           <rect width="120" height="168" rx="7" />
@@ -112,7 +123,7 @@ export function cardFaceTexture(card: Card): THREE.CanvasTexture {
           )}
           <GemAt gem={card.bonus} x={86} y={4} size={27} />
           {costs.map((g, i) => (
-            <CostDisc key={g} gem={g} n={card.cost[g]!} cx={19} cy={150 - i * 28} r={11.5} />
+            <CostDisc key={g} gem={g} n={card.cost[g]!} cx={19} cy={150 - i * 28} r={12} />
           ))}
           <text x="111" y="161" textAnchor="end" fontSize="7" fill="#f4ead1" opacity="0.75">
             {'◆'.repeat(card.tier)}

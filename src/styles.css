@@ -655,24 +655,5 @@ input, select {
 }
 .error-toast.notice { display: flex; align-items: center; gap: 10px; cursor: default; max-width: min(92vw, 760px); }
 
-/* readable cost labels on 3D table cards */
-.cost-label {
-  display: grid; grid-template-columns: auto; gap: 2px; padding: 3px 4px; border-radius: 6px;
-  background: #120c08d9; border: 1px solid #c9a05288; box-shadow: 0 2px 6px #000a;
-  white-space: nowrap;
-}
-.cost-label.two-col { grid-template-columns: auto auto; }
-.cost-chip {
-  display: inline-flex; align-items: center; gap: 2px; padding: 0 5px 0 2px; border-radius: 99px;
-  font-family: var(--font-head); font-weight: 900; font-size: 14px; line-height: 18px; color: #fff;
-  background: radial-gradient(circle at 30% 30%, color-mix(in srgb, var(--chip) 70%, #fff), var(--chip) 55%, var(--chip-dark));
-  box-shadow: inset 0 0 0 1px #fffaf0cc; text-shadow: 0 1px 1px #000a;
-}
-.cost-chip .gem-icon { filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff); }
-.cost-chip.gem-moonstone { color: #232a38; text-shadow: none; }
-.cost-chip.gem-obsidian .gem-icon { filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 2px #fff); }
-.cost-chip i { font-style: normal; font-size: 10px; color: #c9ffc6; margin-left: 1px; }
-.cost-chip.gem-moonstone i { color: #1f6b28; }
-.cost-chip.covered { box-shadow: inset 0 0 0 2px #8fd18b, 0 0 6px #8fd18bcc; }
 .invite-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 .invite-callout p { margin: 4px 0 0; font-size: 15px; }

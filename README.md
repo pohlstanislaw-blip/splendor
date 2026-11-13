@@ -30,7 +30,6 @@ The game has two looks, switched under **Settings** in the top bar:
   - Click token stacks to pick gems (click one stack twice to take 2), then **Take**.
   - **Drag** (mouse or finger) to look around the table; the view stays where you leave it. **Double-click** empty table or press **R** to look straight ahead again. Moving the mouse without dragging never moves the view.
   - Buying or reserving plays a pick-up animation; tokens fly between the supply and players.
-  - **Cost labels** on market cards and the cards in your hand show each price in sharp, gem-coloured chips you can read from your seat. A chip with a green ring and a ✓ is already paid by your card bonuses. Turn them off under Settings → Cost labels.
   - Name plates show each player's exact prestige, tokens and card bonuses.
 - **Classic (2D):** the flat board with player panels.
 

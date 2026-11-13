@@ -9,12 +9,10 @@ export interface Settings {
   /** null = follow the system "reduce motion" setting */
   reduceMotion: boolean | null;
   sound: boolean;
-  /** readable cost labels on cards on the 3D table */
-  costLabels: boolean;
 }
 
 const KEY = 'facets-settings';
-const DEFAULTS: Settings = { view: 'auto', reduceMotion: null, sound: false, costLabels: true };
+const DEFAULTS: Settings = { view: 'auto', reduceMotion: null, sound: false };
 
 /**
  * Version 1 saved an automatic "too slow" fallback as if the player had chosen Classic.
