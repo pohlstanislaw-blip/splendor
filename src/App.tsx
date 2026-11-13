@@ -290,6 +290,7 @@ function Board({ state, dispatch, undo, canUndo, error, clearError, onNewGame, o
               seatColors={PLAYER_COLORS}
               reducedMotion={reducedMotion}
               soundOn={settings.sound}
+              costLabels={settings.costLabels}
               onSlow={
                 settings.view === 'auto'
                   ? (fps) => fallBack(`The 3D table was running slowly here (about ${Math.round(fps)} frames per second), so the classic view is on for this visit.`)
@@ -483,6 +484,17 @@ function SettingsMenu({
               </button>
               <button className={reducedMotion ? 'primary small' : 'small'} onClick={() => update({ reduceMotion: true })}>
                 Reduced
+              </button>
+            </div>
+          </div>
+          <div className="field" title="Readable cost labels on cards on the 3D table">
+            <span>Cost labels</span>
+            <div className="seg">
+              <button className={settings.costLabels ? 'primary small' : 'small'} onClick={() => update({ costLabels: true })}>
+                On
+              </button>
+              <button className={!settings.costLabels ? 'primary small' : 'small'} onClick={() => update({ costLabels: false })}>
+                Off
               </button>
             </div>
           </div>

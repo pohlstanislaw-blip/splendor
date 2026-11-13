@@ -9,7 +9,7 @@ describe('display settings', () => {
     expect(normalizeSettings({ v: 2, view: 'classic' }).view).toBe('classic');
   });
   it('fills defaults', () => {
-    expect(normalizeSettings({})).toEqual({ v: 2, view: 'auto', reduceMotion: null, sound: false });
+    expect(normalizeSettings({})).toEqual({ v: 2, view: 'auto', reduceMotion: null, sound: false, costLabels: true });
     expect(normalizeSettings({ view: 'table', sound: true })).toMatchObject({ view: 'table', sound: true });
   });
 });
