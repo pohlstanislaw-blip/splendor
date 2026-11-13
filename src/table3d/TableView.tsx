@@ -440,7 +440,7 @@ function Figure({ frame, color, active, variant }: { frame: SeatFrame; color: st
     () => new THREE.MeshLambertMaterial({ color: ['#3a3046', '#3b3a2c', '#46302a'][variant % 3], emissive: '#2a1a10', emissiveIntensity: 0.6, flatShading: true }),
   );
   return (
-    <group position={[f.pos[0], -1.35, f.pos[2]]} rotation={[0, f.rotY, 0]} scale={1.3}>
+    <group position={[f.pos[0], -1.8, f.pos[2]]} rotation={[0, f.rotY, 0]} scale={1.3}>
       <mesh position={[0, 1.0, 0]} material={cloth} castShadow>
         <cylinderGeometry args={[0.5, 0.95, 1.9, 7]} />
       </mesh>

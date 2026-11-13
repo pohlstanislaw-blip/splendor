@@ -33,7 +33,7 @@ export interface SeatFrame {
 }
 
 const FRAMES: Record<SeatSlot, Omit<SeatFrame, 'slot'>> = {
-  self: { origin: [0, 0, 3.15], rotY: 0, scale: 1 },
+  self: { origin: [0, 0, 2.95], rotY: 0, scale: 1 },
   opposite: { origin: [0, 0, -4.8], rotY: Math.PI, scale: 0.62 },
   left: { origin: [-6.75, 0, -0.9], rotY: -Math.PI / 2, scale: 0.62 },
   right: { origin: [6.75, 0, -0.9], rotY: Math.PI / 2, scale: 0.62 },
@@ -66,8 +66,9 @@ export function cameraFor(playerCount: number, aspect: number) {
   // pull back on narrow windows so the table still fits
   const squeeze = Math.max(1, (wide ? 1.75 : 1.45) / Math.max(aspect, 0.8));
   return {
-    pos: [0, (wide ? 9.0 : 8.3) * squeeze, (wide ? 8.9 : 8.8) * squeeze] as Vec3,
-    target: [0, 0, wide ? -0.85 : -0.7] as Vec3,
+    // about 12% closer than before, so card costs read more easily
+    pos: [0, (wide ? 7.95 : 7.3) * squeeze, (wide ? 7.85 : 7.75) * squeeze] as Vec3,
+    target: [0, 0, wide ? -0.6 : -0.45] as Vec3,
     fov: wide ? 53 : 47,
   };
 }
