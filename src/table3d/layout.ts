@@ -124,8 +124,8 @@ export function boughtPose(f: SeatFrame, gem: Gem, indexInStack: number, stackSi
 
 /** A reserved card. The viewer's own stand upright like a hand; others lie in front of their owner. */
 export function reservedPose(f: SeatFrame, index: number, faceUp: boolean): Pose {
+  if (f.slot === 'self') return seatPose(f, [-3.3 - index * 0.96, 0.6, 0.15], -0.38, 0.84);
   const x = -3.65 - index * 1.08;
-  if (f.slot === 'self') return seatPose(f, [x, 0.66, 0.15], -0.38, 0.92);
   return seatPose(f, [x, 0.012, 0], faceUp ? FLAT_UP : FLAT_DOWN, STACK_SCALE);
 }
 

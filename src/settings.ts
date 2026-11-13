@@ -11,6 +11,8 @@ export interface Settings {
   sound: boolean;
   /** opponents' name plates on the 3D table */
   plates: PlateMode;
+  /** your own docked panel on the 3D table */
+  selfPlate: 'full' | 'small';
 }
 
 export type PlateMode = 'full' | 'small' | 'off';
@@ -18,7 +20,7 @@ export const PLATE_MODES: PlateMode[] = ['full', 'small', 'off'];
 export const PLATE_LABEL: Record<PlateMode, string> = { full: 'Full', small: 'Small', off: 'Off' };
 
 const KEY = 'facets-settings';
-const DEFAULTS: Settings = { view: 'auto', reduceMotion: null, sound: false, plates: 'full' };
+const DEFAULTS: Settings = { view: 'auto', reduceMotion: null, sound: false, plates: 'full', selfPlate: 'full' };
 
 /**
  * Version 1 saved an automatic "too slow" fallback as if the player had chosen Classic.

@@ -320,9 +320,23 @@ function Board({ state, dispatch, undo, canUndo, error, clearError, onNewGame, o
           </Suspense>
           </Catch>
 
-          <div className="hud hud-self">
-            <SeatPlate state={state} index={tableSeat} seat={online?.seats[tableSeat]} self={!!online ? online.you !== null : true} />
-          </div>
+          <button
+            className="hud hud-self"
+            onClick={() => update({ selfPlate: settings.selfPlate === 'full' ? 'small' : 'full' })}
+            title={settings.selfPlate === 'full' ? 'Collapse your panel' : 'Show your full panel'}
+            aria-expanded={settings.selfPlate === 'full'}
+          >
+            <SeatPlate
+              state={state}
+              index={tableSeat}
+              seat={online?.seats[tableSeat]}
+              self={!!online ? online.you !== null : true}
+              small={settings.selfPlate === 'small'}
+            />
+            <span className="hud-self-toggle" aria-hidden>
+              {settings.selfPlate === 'full' ? '▾' : '▴'}
+            </span>
+          </button>
 
           <div className="hud hud-log">
             <div className="hud-buttons">
@@ -526,6 +540,16 @@ function SettingsMenu({
               ))}
             </div>
           </div>
+          <div className="field" title="Your own panel at the bottom left of the 3D table (or click the panel)">
+            <span>Your panel</span>
+            <div className="seg">
+              {(['full', 'small'] as const).map((m) => (
+                <button key={m} className={settings.selfPlate === m ? 'primary small' : 'small'} onClick={() => update({ selfPlate: m })}>
+                  {m === 'full' ? 'Full' : 'Small'}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="field">
             <span>Sound</span>
             <div className="seg">
@@ -552,14 +576,17 @@ function SeatPlate({ state, index, seat, self = false, small = false }: { state:
   if (small) {
     return (
       <div
-        className={`plate small${isCurrent ? ' current' : ''}`}
+        className={`plate small${isCurrent ? ' current' : ''}${self ? ' self' : ''}`}
         style={{ ['--pc' as string]: PLAYER_COLORS[index] }}
         title={`${p.name}: ${prestige(p)} prestige${isCurrent ? ' · their turn' : ''}`}
       >
         {isCurrent && <span className="turn-arrow">▶ </span>}
-        <span className="plate-name">{p.name}</span>
+        <span className="plate-name">{self ? 'You' : p.name}</span>
         {offline && <span className="offline-badge"> · offline</span>}
-        <span className="plate-points">{prestige(p)}</span>
+        <span className="plate-points">
+          {prestige(p)}
+          {self && <small>/{WIN_POINTS}</small>}
+        </span>
       </div>
     );
   }
