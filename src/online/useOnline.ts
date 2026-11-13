@@ -1,39 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Action } from '../engine';
+import { adoptSeat, browserStores, forgetRoom, forgetSeat, initialIdentity, rememberSeat, seatsToOffer, type Seat } from './identity';
 import { normalizeCode, type ClientMsg, type RoomView, type SeatKind, type ServerMsg } from './protocol';
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'open' | 'reconnecting' | 'unavailable';
 
-const TOKEN_KEY = 'facets-online-token';
-const ROOM_KEY = 'facets-online-room';
 const NAME_KEY = 'facets-online-name';
 
 function storageGet(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
+  return browserStores.local.get(key);
 }
 function storageSet(key: string, value: string | null) {
-  try {
-    if (value === null) localStorage.removeItem(key);
-    else localStorage.setItem(key, value);
-  } catch {
-    /* storage unavailable */
-  }
-}
-
-/** A random id that identifies this browser as a player across reconnects. */
-function playerToken(): string {
-  let t = storageGet(TOKEN_KEY);
-  if (!t || !/^[A-Za-z0-9_-]{16,64}$/.test(t)) {
-    const bytes = new Uint8Array(18);
-    crypto.getRandomValues(bytes);
-    t = btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    storageSet(TOKEN_KEY, t);
-  }
-  return t;
+  browserStores.local.set(key, value);
 }
 
 export function savedName(): string {
@@ -68,6 +46,12 @@ export function useOnline() {
   const retry = useRef<{ timer?: number; attempt: number }>({ attempt: 0 });
   const closing = useRef(false);
   const inRoom = useRef(false);
+  // this tab's player identity (see identity.ts), decided once per page load
+  const identity = useRef<{ token: string; rejoin: string | null } | null>(null);
+  identity.current ??= initialIdentity(browserStores, inviteCodeFromUrl());
+  /** set when this tab asks for a seat (create / join / rejoin): the next room update is remembered as "my seat" */
+  const claiming = useRef(false);
+  const [offers, setOffers] = useState<Seat[]>(() => seatsToOffer(browserStores, inviteCodeFromUrl(), identity.current!.token));
 
   const connect = useCallback(() => {
     const cur = ws.current;
@@ -87,8 +71,8 @@ export function useOnline() {
       everOpened.current = true;
       retry.current.attempt = 0;
       setStatus('open');
-      sock.send(JSON.stringify({ t: 'hello', token: playerToken() } satisfies ClientMsg));
-      const saved = storageGet(ROOM_KEY);
+      sock.send(JSON.stringify({ t: 'hello', token: identity.current!.token } satisfies ClientMsg));
+      const saved = identity.current!.rejoin;
       const queued = queue.current.splice(0);
       // rejoin the saved room unless this batch already joins/creates one
       if (saved && !queued.some((m) => m.t === 'join' || m.t === 'create'))
@@ -105,15 +89,31 @@ export function useOnline() {
       if (msg.t === 'room') {
         inRoom.current = true;
         setRoom(msg.room);
-        storageSet(ROOM_KEY, msg.room.code);
+        const me = msg.room.you !== null ? msg.room.seats[msg.room.you].name : '';
+        identity.current!.rejoin = msg.room.code;
+        // Only a seat this tab just asked for becomes the browser's remembered seat; routine
+        // updates in other open tabs must not overwrite it.
+        if (claiming.current) {
+          claiming.current = false;
+          rememberSeat(browserStores, msg.room.code, identity.current!.token, me);
+        } else {
+          adoptSeat(browserStores, { code: msg.room.code, token: identity.current!.token, name: me });
+        }
+        setOffers([]);
       } else if (msg.t === 'left') {
         inRoom.current = false;
         setRoom(null);
-        storageSet(ROOM_KEY, null);
+        forgetSeat(browserStores, identity.current!.rejoin, identity.current!.token);
+        identity.current!.rejoin = null;
       } else if (msg.t === 'error') {
+        // a saved room that no longer exists (the server restarted): forget it quietly
+        if (/^No room/.test(msg.message) && !inRoom.current && identity.current!.rejoin) {
+          forgetRoom(browserStores, identity.current!.rejoin);
+          identity.current!.rejoin = null;
+          setOffers([]);
+          if (!queue.current.length) return;
+        }
         setError(msg.message);
-        // a saved room that no longer exists (server restarted): forget it quietly
-        if (/^No room/.test(msg.message) && !inRoom.current) storageSet(ROOM_KEY, null);
       }
     };
     sock.onclose = () => {
@@ -122,7 +122,7 @@ export function useOnline() {
       if (closing.current) return setStatus('idle');
       if (!everOpened.current) return setStatus('unavailable');
       // dropped: reconnect with backoff while we still belong to a room
-      if (!storageGet(ROOM_KEY)) return setStatus('idle');
+      if (!identity.current!.rejoin) return setStatus('idle');
       setStatus('reconnecting');
       const wait = Math.min(10_000, 1000 * 2 ** retry.current.attempt++);
       retry.current.timer = window.setTimeout(connect, wait);
@@ -142,9 +142,9 @@ export function useOnline() {
     [connect],
   );
 
-  // Rejoin automatically after a refresh if this browser was in a room.
+  // Rejoin automatically after a refresh, or when coming back to the site.
   useEffect(() => {
-    if (storageGet(ROOM_KEY)) connect();
+    if (identity.current!.rejoin) connect();
     return () => {
       closing.current = true;
       window.clearTimeout(retry.current.timer);
@@ -162,10 +162,12 @@ export function useOnline() {
     connect,
     create: (name: string, seats: SeatKind[]) => {
       setName(name);
+      claiming.current = true;
       send({ t: 'create', name, seats });
     },
     join: (code: string, name: string) => {
       setName(name);
+      claiming.current = true;
       send({ t: 'join', code: normalizeCode(code), name });
     },
     start: () => send({ t: 'start' }),
@@ -177,7 +179,22 @@ export function useOnline() {
       send({ t: 'leave' });
       inRoom.current = false;
       setRoom(null);
-      storageSet(ROOM_KEY, null);
+      forgetSeat(browserStores, identity.current!.rejoin, identity.current!.token);
+      identity.current!.rejoin = null;
+    },
+    /** seats this browser already has in the invited room (other tabs or earlier visits) */
+    offers,
+    /** take that seat in this tab instead of joining as a new player */
+    rejoinAs: (seat: Seat) => {
+      adoptSeat(browserStores, seat);
+      identity.current = { token: seat.token, rejoin: seat.code };
+      claiming.current = true;
+      setOffers([]);
+      const sock = ws.current;
+      if (sock && sock.readyState === WebSocket.OPEN) {
+        sock.send(JSON.stringify({ t: 'hello', token: seat.token } satisfies ClientMsg));
+        sock.send(JSON.stringify({ t: 'join', code: seat.code, name: seat.name } satisfies ClientMsg));
+      } else connect();
     },
   };
 }

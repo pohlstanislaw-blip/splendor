@@ -44,6 +44,12 @@ const PLAYER_COLORS = ['#f0b429', '#4fd1c5', '#f687b3', '#9f7aea'];
 const CONTROLLER_LABEL: Record<Controller, string> = { human: 'Human', easy: 'AI · Easy', medium: 'AI · Medium' };
 
 export default function App() {
+  // download the 3D table in the background, so it is ready when a game starts
+  useEffect(() => {
+    if (window.innerWidth < 900) return;
+    const t = window.setTimeout(() => void import('./table3d/TableView').catch(() => {}), 1200);
+    return () => window.clearTimeout(t);
+  }, []);
   const game = useGame();
   const online = useOnline();
   const inviteCode = useMemo(() => inviteCodeFromUrl(), []);
@@ -1267,11 +1273,22 @@ function OnlinePanel({ online, inviteCode }: { online: OnlineApi; inviteCode: st
       {inviteCode && (
         <div className="online-section invite-callout">
           <h3>You were invited to room {inviteCode}</h3>
-          <span className="btn-wrap" title={nameReason ?? ''}>
-            <button className="primary" disabled={!!nameReason || busy} onClick={() => online.join(inviteCode, myName)}>
-              Join room {inviteCode}
-            </button>
-          </span>
+          {online.offers.length > 0 && (
+            <p className="muted">This browser already has a seat in this room (in another tab or from an earlier visit).</p>
+          )}
+          <div className="invite-actions">
+            {online.offers.map((seat) => (
+              <button key={seat.token} className="primary" disabled={busy} onClick={() => online.rejoinAs(seat)}>
+                Rejoin as {seat.name || 'my seat'}
+              </button>
+            ))}
+            <span className="btn-wrap" title={nameReason ?? ''}>
+              <button className={online.offers.length ? '' : 'primary'} disabled={!!nameReason || busy} onClick={() => online.join(inviteCode, myName)}>
+                {online.offers.length ? 'Join as a new player' : `Join room ${inviteCode}`}
+              </button>
+            </span>
+          </div>
+          {nameReason && <p className="muted small-print">Type your name above to join.</p>}
         </div>
       )}
 

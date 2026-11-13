@@ -674,3 +674,5 @@ input, select {
 .cost-chip i { font-style: normal; font-size: 10px; color: #c9ffc6; margin-left: 1px; }
 .cost-chip.gem-moonstone i { color: #1f6b28; }
 .cost-chip.covered { box-shadow: inset 0 0 0 2px #8fd18b, 0 0 6px #8fd18bcc; }
+.invite-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.invite-callout p { margin: 4px 0 0; font-size: 15px; }
